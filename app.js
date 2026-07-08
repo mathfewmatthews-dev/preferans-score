@@ -111,6 +111,12 @@ const FIXED_GAME_VALUES = {
 };
 
 const AUTOSAVE_KEY = "preferans.autosave.v1";
+const TABLE_IMAGE_DB_NAME = "preferans.table-image.v1";
+const TABLE_IMAGE_STORE = "assets";
+const TABLE_IMAGE_KEY = "tableBackground";
+const TABLE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const TABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg"]);
+
 
 let undoStack = [];
 let redoStack = [];
@@ -124,6 +130,9 @@ let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
 let applyingRemoteState = false;
 let remoteAvailable = false;
+let tableImageObjectUrl = "";
+let tableImageLoaded = false;
+
 
 const el = {
   appHeader: document.querySelector(".app-header"),
@@ -141,6 +150,12 @@ const el = {
   backgroundColor: document.getElementById("backgroundColor"),
   tableColor: document.getElementById("tableColor"),
   clothColor: document.getElementById("clothColor"),
+  tableImageDropzone: document.getElementById("tableImageDropzone"),
+  tableImageInput: document.getElementById("tableImageInput"),
+  tableImagePreview: document.getElementById("tableImagePreview"),
+  tableImagePreviewImg: document.getElementById("tableImagePreviewImg"),
+  removeTableImageButton: document.getElementById("removeTableImageButton"),
+  tableImageError: document.getElementById("tableImageError"),
   lightModeButton: document.getElementById("lightModeButton"),
   darkModeButton: document.getElementById("darkModeButton"),
   scoreCountingMode: document.getElementById("scoreCountingMode"),
@@ -226,6 +241,7 @@ const el = {
 
 function initialize() {
   applyTheme();
+  restoreTableImageFromStorage();
   registerServiceWorker();
   setupRemoteSync();
   const urlGameId = getUrlGameId();
@@ -265,6 +281,7 @@ function bindEvents() {
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
   el.resetColorSettingsButton?.addEventListener("click", resetColorSettings);
+  bindTableImageControls();
   el.installAppButton?.addEventListener("click", installApp);
   window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   window.addEventListener("appinstalled", handleAppInstalled);
@@ -676,7 +693,8 @@ function defaultThemeColors(mode = state.appearanceMode) {
 
 function colorsMatchDefaults(mode = state.appearanceMode) {
   const defaults = defaultThemeColors(mode);
-  return Object.entries(defaults).every(([key, value]) => (state[key] || value).toLowerCase() === value.toLowerCase());
+  const colorsDefault = Object.entries(defaults).every(([key, value]) => (state[key] || value).toLowerCase() === value.toLowerCase());
+  return colorsDefault && !tableImageLoaded;
 }
 
 function syncColorResetButton() {
@@ -684,11 +702,170 @@ function syncColorResetButton() {
   el.resetColorSettingsButton.disabled = colorsMatchDefaults();
 }
 
-function resetColorSettings() {
+async function resetColorSettings() {
   Object.assign(state, defaultThemeColors());
+  await clearTableImage();
   applyTheme();
   saveAutosavedGame();
 }
+function bindTableImageControls() {
+  if (!el.tableImageDropzone || !el.tableImageInput) return;
+  el.tableImageDropzone.addEventListener("click", () => el.tableImageInput.click());
+  el.tableImageInput.addEventListener("change", () => handleTableImageFiles(el.tableImageInput.files));
+  ["dragenter", "dragover"].forEach((eventName) => {
+    el.tableImageDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      el.tableImageDropzone.classList.add("drag-over");
+    });
+  });
+  ["dragleave", "drop"].forEach((eventName) => {
+    el.tableImageDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      el.tableImageDropzone.classList.remove("drag-over");
+    });
+  });
+  el.tableImageDropzone.addEventListener("drop", (event) => handleTableImageFiles(event.dataTransfer?.files));
+  el.removeTableImageButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearTableImage();
+  });
+  el.removeTableImageButton?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearTableImage();
+  });
+}
+
+async function handleTableImageFiles(fileList) {
+  const file = fileList?.[0];
+  if (!file) return;
+  clearTableImageError();
+  if (!TABLE_IMAGE_TYPES.has(file.type)) {
+    showTableImageError("\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044e\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e PNG \u0438 JPEG.");
+    resetTableImageInput();
+    return;
+  }
+  if (file.size > TABLE_IMAGE_MAX_BYTES) {
+    showTableImageError("\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430 \u0431\u043e\u043b\u044c\u0448\u0435 5 \u041c\u0411. \u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u043f\u043e\u043c\u0435\u043d\u044c\u0448\u0435.");
+    resetTableImageInput();
+    return;
+  }
+  try {
+    await saveTableImageToStorage(file);
+    setTableImageBlob(file);
+    clearTableImageError();
+    resetTableImageInput();
+  } catch (error) {
+    console.warn("Table image save failed", error);
+    showTableImageError("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043a\u0430\u0440\u0442\u0438\u043d\u043a\u0443 \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
+  }
+}
+
+function setTableImageBlob(blob) {
+  if (tableImageObjectUrl) URL.revokeObjectURL(tableImageObjectUrl);
+  tableImageObjectUrl = URL.createObjectURL(blob);
+  tableImageLoaded = true;
+  renderTableImagePreview();
+  applyTheme();
+}
+
+function renderTableImagePreview() {
+  if (!el.tableImageDropzone || !el.tableImagePreview || !el.tableImagePreviewImg) return;
+  el.tableImageDropzone.classList.toggle("has-image", tableImageLoaded);
+  el.tableImagePreview.hidden = !tableImageLoaded;
+  if (tableImageLoaded) el.tableImagePreviewImg.src = tableImageObjectUrl;
+  else el.tableImagePreviewImg.removeAttribute("src");
+  syncColorResetButton();
+}
+
+async function restoreTableImageFromStorage() {
+  try {
+    const stored = await readTableImageFromStorage();
+    if (stored?.blob) setTableImageBlob(stored.blob);
+    else renderTableImagePreview();
+  } catch (error) {
+    console.warn("Table image restore failed", error);
+    renderTableImagePreview();
+  }
+}
+
+async function clearTableImage() {
+  try {
+    await deleteTableImageFromStorage();
+  } catch (error) {
+    console.warn("Table image delete failed", error);
+  }
+  if (tableImageObjectUrl) URL.revokeObjectURL(tableImageObjectUrl);
+  tableImageObjectUrl = "";
+  tableImageLoaded = false;
+  renderTableImagePreview();
+  clearTableImageError();
+  resetTableImageInput();
+  applyTheme();
+}
+
+function showTableImageError(message) {
+  if (el.tableImageError) el.tableImageError.textContent = message;
+}
+
+function clearTableImageError() {
+  if (el.tableImageError) el.tableImageError.textContent = "";
+}
+
+function resetTableImageInput() {
+  if (el.tableImageInput) el.tableImageInput.value = "";
+}
+
+function openTableImageDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("IndexedDB unavailable"));
+      return;
+    }
+    const request = indexedDB.open(TABLE_IMAGE_DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(TABLE_IMAGE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function withTableImageStore(mode, action) {
+  const db = await openTableImageDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(TABLE_IMAGE_STORE, mode);
+    const store = transaction.objectStore(TABLE_IMAGE_STORE);
+    const request = action(store);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(request?.result);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+function saveTableImageToStorage(file) {
+  return withTableImageStore("readwrite", (store) => store.put({
+    blob: file,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    updatedAt: Date.now(),
+  }, TABLE_IMAGE_KEY));
+}
+
+function readTableImageFromStorage() {
+  return withTableImageStore("readonly", (store) => store.get(TABLE_IMAGE_KEY));
+}
+
+function deleteTableImageFromStorage() {
+  return withTableImageStore("readwrite", (store) => store.delete(TABLE_IMAGE_KEY));
+}
+
 function setAppearanceMode(mode) {
   const nextMode = mode === "dark" ? "dark" : "light";
   if (state.appearanceMode === nextMode) return;
@@ -829,6 +1006,7 @@ function applyTheme() {
   document.documentElement.style.setProperty("--logo-mark", logoPalette.mark);
   document.documentElement.style.setProperty("--logo-outline", logoPalette.outline);
   document.documentElement.style.setProperty("--table-bg", state.tableColor || defaultTableColor());
+  document.documentElement.style.setProperty("--table-image", tableImageObjectUrl ? `url("${tableImageObjectUrl}")` : "none");
   document.documentElement.style.setProperty("--bg", state.backgroundColor || fallbackBg);
   document.documentElement.style.setProperty("--surface", state.backgroundColor || fallbackBg);
   document.documentElement.style.setProperty("--neu-bg", state.backgroundColor || fallbackBg);
@@ -2972,9 +3150,7 @@ function subscribeRemoteGame(gameId = state.gameId) {
     const normalized = normalizeState(remoteState);
     if (normalized.remoteUpdatedAt && normalized.remoteUpdatedAt === state.remoteUpdatedAt) return;
     applyingRemoteState = true;
-    Object.assign(state, normalized, { gameId });
-    document.body.classList.add("game-started");
-    restoreState(state);
+    applyRemoteGameState(remoteState, gameId);
     applyingRemoteState = false;
   }, (error) => {
     console.warn("Remote game subscription failed", error);
@@ -2998,18 +3174,66 @@ async function loadRemoteGame(gameId) {
       showMessage("Игра по ссылке повреждена или сохранена в старом формате.");
       return;
     }
-    const remoteState = normalizeState(remoteStateValue);
-    Object.assign(state, remoteState, { gameId });
     setGameUrl(gameId);
-    document.body.classList.add("game-started");
     applyingRemoteState = true;
-    restoreState(state);
+    applyRemoteGameState(remoteStateValue, gameId);
     applyingRemoteState = false;
     subscribeRemoteGame(gameId);
   } catch (error) {
     console.warn("Remote game load failed", error);
     showMessage("Не удалось загрузить игру по ссылке. Проверьте Firestore и правила доступа.");
   }
+}
+
+function remoteGameState() {
+  const snapshot = cloneState();
+  const keys = [
+    "convention",
+    "poolTarget",
+    "initialPoolTarget",
+    "raspassLevel",
+    "scoreCountingMode",
+    "scoresCalculated",
+    "poolClosingMode",
+    "players",
+    "pool",
+    "mountain",
+    "whists",
+    "scoreLog",
+    "lastScoreDelta",
+    "lastChanged",
+    "history",
+    "customConventions",
+    "gameId",
+    "remoteUpdatedAt",
+  ];
+  return keys.reduce((result, key) => {
+    result[key] = snapshot[key];
+    return result;
+  }, {});
+}
+
+function localUiState() {
+  return {
+    themeColor: state.themeColor,
+    buttonTextColor: state.buttonTextColor,
+    headerButtonColor: state.headerButtonColor,
+    headerButtonTextColor: state.headerButtonTextColor,
+    headerTextColor: state.headerTextColor,
+    headerColor: state.headerColor,
+    backgroundColor: state.backgroundColor,
+    tableColor: state.tableColor,
+    clothColor: state.clothColor,
+    appearanceMode: state.appearanceMode,
+  };
+}
+
+function applyRemoteGameState(remoteState, gameId) {
+  const localUi = localUiState();
+  const normalized = normalizeState(remoteState);
+  Object.assign(state, normalized, localUi, { gameId });
+  document.body.classList.add("game-started");
+  restoreState(state);
 }
 
 function remoteStateFromSnapshot(data) {
@@ -3034,7 +3258,7 @@ async function saveRemoteGame() {
   if (!ref) return;
   try {
     await ref.set({
-      stateJson: JSON.stringify(firestoreSafeValue(cloneState())),
+      stateJson: JSON.stringify(firestoreSafeValue(remoteGameState())),
       stateFormat: "json-v1",
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       clientUpdatedAt: Number(state.remoteUpdatedAt) || Date.now(),

@@ -214,6 +214,23 @@
             <span>Цвет сукна</span>
             <input id="clothColor" type="color" value="#ffffff">
           </label>
+          <div class="table-image-setting">
+            <div class="table-image-head">
+              <span>Фон стола</span>
+              <small>PNG или JPEG до 5 МБ</small>
+            </div>
+            <button id="tableImageDropzone" class="table-image-dropzone" type="button" aria-describedby="tableImageHint">
+              <span class="table-image-empty">Перетащите картинку сюда или выберите файл</span>
+              <span id="tableImagePreview" class="table-image-preview" hidden>
+                <img id="tableImagePreviewImg" alt="Превью фона стола">
+                <span id="removeTableImageButton" class="table-image-remove" role="button" tabindex="0" aria-label="Удалить фон стола">×</span>
+              </span>
+            </button>
+            <input id="tableImageInput" class="visually-hidden" type="file" accept="image/png,image/jpeg">
+            <p id="tableImageHint" class="table-image-hint">Картинка отображается только у вас и не синхронизируется онлайн.</p>
+            <p id="tableImageError" class="table-image-error" role="status"></p>
+          </div>
+
         </div>
       </div>
         <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
