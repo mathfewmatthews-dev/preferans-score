@@ -114,7 +114,7 @@ const AUTOSAVE_KEY = "preferans.autosave.v1";
 const TABLE_IMAGE_DB_NAME = "preferans.table-image.v1";
 const TABLE_IMAGE_STORE = "assets";
 const TABLE_IMAGE_KEY = "tableBackground";
-const TABLE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const TABLE_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 const TABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg"]);
 
 
@@ -748,7 +748,7 @@ async function handleTableImageFiles(fileList) {
     return;
   }
   if (file.size > TABLE_IMAGE_MAX_BYTES) {
-    showTableImageError("\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430 \u0431\u043e\u043b\u044c\u0448\u0435 5 \u041c\u0411. \u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u043f\u043e\u043c\u0435\u043d\u044c\u0448\u0435.");
+    showTableImageError("\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430 \u0431\u043e\u043b\u044c\u0448\u0435 20 \u041c\u0411. \u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u043f\u043e\u043c\u0435\u043d\u044c\u0448\u0435.");
     resetTableImageInput();
     return;
   }

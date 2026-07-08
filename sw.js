@@ -1,4 +1,4 @@
-const CACHE_NAME = "preference-pwa-v10";
+const CACHE_NAME = "preference-pwa-v11";
 const APP_SHELL = [
   "./",
   "index.html",

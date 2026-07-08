@@ -4534,7 +4534,7 @@ body:not(.game-started) #floatingShareButton,
 .pool-card {
   background-color: var(--table-bg) !important;
   background-image: var(--table-image, none) !important;
-  background-size: contain !important;
+  background-size: cover !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-clip: padding-box;
