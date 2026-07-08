@@ -1,4 +1,4 @@
-const CACHE_NAME = "preference-pwa-v1";
+const CACHE_NAME = "preference-pwa-v2";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -6,9 +6,9 @@ const APP_SHELL = [
   "app.js",
   "logo.svg",
   "manifest.webmanifest",
-  "icons/icon-192.png",
-  "icons/icon-512.png",
-  "icons/icon-maskable-512.png",
+  "icons/logo-192.png",
+  "icons/logo-512.png",
+  "icons/logo-maskable-512.png",
   "fonts/share-tech-rus.ttf"
 ];
 
