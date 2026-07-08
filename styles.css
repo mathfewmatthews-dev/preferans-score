@@ -92,26 +92,34 @@ select {
 }
 
 .candelabra {
-  width: 54px;
-  height: 54px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  color: var(--button-text);
+  color: var(--header-text);
+  border-radius: 50%;
+  background: transparent;
 }
 
-.candelabra svg {
-  width: 48px;
-  height: 48px;
+.brand-logo {
+  width: 33px;
+  height: 33px;
+  display: block;
+  filter: drop-shadow(0 0 0 var(--logo-outline)) drop-shadow(0 1px 2px rgba(0, 0, 0, .18));
+}
+
+.brand-logo-disc {
+  fill: var(--logo-disc, #ffffff);
+}
+
+.brand-logo-mark-stroke {
   fill: none;
-  stroke: currentColor;
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke: var(--logo-mark, #ffc400);
 }
 
-.candelabra .flame {
-  fill: currentColor;
-  stroke-width: 2;
+.brand-logo-mark-fill {
+  fill: var(--logo-mark, #ffc400);
+  stroke: var(--logo-mark, #ffc400);
 }
 
 .header-actions,
@@ -4004,4 +4012,78 @@ html[data-theme="dark"] .sheet-border {
   dominant-baseline: middle;
   alignment-baseline: middle;
   baseline-shift: 0;
+}
+/* Setup panel typography parity with convention settings */
+body:not(.game-started) #setupPanel .section-title {
+  font-size: 28px;
+  line-height: 1.15;
+  margin-bottom: 24px;
+}
+
+body:not(.game-started) #setupPanel label > span {
+  font-size: 26px;
+  line-height: 1.18;
+  color: var(--muted);
+}
+
+body:not(.game-started) #setupPanel input:not([type="checkbox"]):not([type="color"]),
+body:not(.game-started) #setupPanel select,
+body:not(.game-started) #setupPanel textarea {
+  min-height: 52px;
+  font-size: 22px;
+  padding: 10px 14px;
+}
+
+body:not(.game-started) #setupPanel #startButton {
+  min-height: 54px;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+@media (max-width: 720px) {
+  body:not(.game-started) #setupPanel .section-title {
+    font-size: 24px;
+    margin-bottom: 18px;
+  }
+
+  body:not(.game-started) #setupPanel label > span {
+    font-size: 20px;
+  }
+
+  body:not(.game-started) #setupPanel input:not([type="checkbox"]):not([type="color"]),
+  body:not(.game-started) #setupPanel select,
+  body:not(.game-started) #setupPanel textarea,
+  body:not(.game-started) #setupPanel #startButton {
+    min-height: 48px;
+    font-size: 20px;
+  }
+}
+/* Dynamic brand logo colors must override legacy candelabra stroke rules. */
+.brand-logo .brand-logo-disc {
+  fill: var(--logo-disc, #ffffff) !important;
+  stroke: none !important;
+}
+
+.brand-logo .brand-logo-mark-stroke {
+  fill: none !important;
+  stroke: var(--logo-mark, #ffc400) !important;
+}
+
+.brand-logo .brand-logo-mark-fill {
+  fill: var(--logo-mark, #ffc400) !important;
+  stroke: var(--logo-mark, #ffc400) !important;
+}
+.color-reset-button {
+  width: 100%;
+  margin-top: 18px;
+  background: var(--accent) !important;
+  color: var(--button-text) !important;
+  border-color: color-mix(in srgb, var(--accent) 82%, black) !important;
+}
+
+.color-reset-button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+  box-shadow: none !important;
+  transform: none !important;
 }

@@ -10,11 +10,17 @@
   <header class="app-header">
     <div class="brand">
       <div class="candelabra" aria-hidden="true">
-        <svg viewBox="0 0 96 96" role="img">
-          <path class="flame" d="M22 10c5 6 6 11 0 17-6-6-5-11 0-17Z"/>
-          <path class="flame" d="M48 6c6 8 7 15 0 23-7-8-6-15 0-23Z"/>
-          <path class="flame" d="M74 10c5 6 6 11 0 17-6-6-5-11 0-17Z"/>
-          <path d="M22 28v24M48 30v34M74 28v24M18 52h60M30 52c0 10 8 14 18 14s18-4 18-14M48 66v13M32 82h32M25 88h46M14 34h16M66 34h16M14 34v18c0 8 7 12 16 12M82 34v18c0 8-7 12-16 12"/>
+        <svg class="brand-logo" width="566" height="566" viewBox="0 0 566 566" fill="none" role="img">
+          <g clip-path="url(#brandLogoClip)">
+            <circle class="brand-logo-disc" cx="283" cy="283" r="283"/>
+            <circle class="brand-logo-mark-stroke" cx="283" r="263" stroke-width="40"/>
+            <rect class="brand-logo-mark-fill" x="263.5" y="0.5" width="39" height="565"/>
+          </g>
+          <defs>
+            <clipPath id="brandLogoClip">
+              <path d="M0 0H566V283C566 439.297 439.297 566 283 566C126.703 566 0 439.297 0 283V0Z"/>
+            </clipPath>
+          </defs>
         </svg>
       </div>
       <div>
@@ -196,6 +202,7 @@
           </label>
         </div>
       </div>
+      <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
     </div>
   </div>
 

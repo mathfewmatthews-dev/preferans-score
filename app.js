@@ -194,6 +194,7 @@ const el = {
   conventionButton: document.getElementById("conventionButton"),
   colorSettingsDrawer: document.getElementById("colorSettingsDrawer"),
   closeSettingsButton: document.getElementById("closeSettingsButton"),
+  resetColorSettingsButton: document.getElementById("resetColorSettingsButton"),
   conventionModal: document.getElementById("conventionModal"),
   closeConventionButton: document.getElementById("closeConventionButton"),
   rulesModal: document.getElementById("rulesModal"),
@@ -236,6 +237,7 @@ function bindEvents() {
   el.backgroundColor.addEventListener("input", updateThemeFromInputs);
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
+  el.resetColorSettingsButton?.addEventListener("click", resetColorSettings);
   el.lightModeButton.addEventListener("click", () => setAppearanceMode("light"));
   el.darkModeButton.addEventListener("click", () => setAppearanceMode("dark"));
   el.poolClosingMode.addEventListener("change", () => {
@@ -624,6 +626,35 @@ function defaultSheetColor(mode = state.appearanceMode) {
   return mode === "dark" ? "#20252c" : "#ffffff";
 }
 
+function defaultThemeColors(mode = state.appearanceMode) {
+  return {
+    themeColor: "#28733b",
+    buttonTextColor: "#ffffff",
+    headerButtonColor: defaultHeaderButtonColor(mode),
+    headerButtonTextColor: defaultHeaderButtonTextColor(mode),
+    headerTextColor: defaultHeaderTextColor(),
+    headerColor: "#28733b",
+    backgroundColor: mode === "dark" ? "#252a31" : "#eef2f7",
+    tableColor: defaultTableColor(mode),
+    clothColor: defaultSheetColor(mode),
+  };
+}
+
+function colorsMatchDefaults(mode = state.appearanceMode) {
+  const defaults = defaultThemeColors(mode);
+  return Object.entries(defaults).every(([key, value]) => (state[key] || value).toLowerCase() === value.toLowerCase());
+}
+
+function syncColorResetButton() {
+  if (!el.resetColorSettingsButton) return;
+  el.resetColorSettingsButton.disabled = colorsMatchDefaults();
+}
+
+function resetColorSettings() {
+  Object.assign(state, defaultThemeColors());
+  applyTheme();
+  saveAutosavedGame();
+}
 function setAppearanceMode(mode) {
   const nextMode = mode === "dark" ? "dark" : "light";
   if (state.appearanceMode === nextMode) return;
@@ -685,6 +716,64 @@ function syncButtonSurfaces() {
   });
 }
 
+function hexToRgbColor(hex) {
+  const value = String(hex || "").trim().replace(/^#/, "");
+  const normalized = value.length === 3
+    ? value.split("").map((char) => char + char).join("")
+    : value;
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return null;
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function relativeLuminance({ r, g, b }) {
+  const linear = [r, g, b].map((channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function rgbToHsl({ r, g, b }) {
+  const red = r / 255;
+  const green = g / 255;
+  const blue = b / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const lightness = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: lightness };
+  const delta = max - min;
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let hue = max === red
+    ? (green - blue) / delta + (green < blue ? 6 : 0)
+    : max === green
+      ? (blue - red) / delta + 2
+      : (red - green) / delta + 4;
+  hue *= 60;
+  return { h: hue, s: saturation, l: lightness };
+}
+
+function logoPaletteForHeader(headerColor) {
+  const rgb = hexToRgbColor(headerColor) || hexToRgbColor("#28733b");
+  const luminance = relativeLuminance(rgb);
+  const hsl = rgbToHsl(rgb);
+  const isYellowHeader = hsl.h >= 38 && hsl.h <= 68 && hsl.s >= 0.35 && hsl.l >= 0.35;
+  const isVeryLightNeutral = luminance >= 0.82 && hsl.s <= 0.18;
+  if (isYellowHeader) {
+    return { disc: "#ffffff", mark: "#28733b", outline: "rgba(17, 24, 39, .48)" };
+  }
+  if (isVeryLightNeutral) {
+    return { disc: "#111827", mark: "#ffc400", outline: "rgba(17, 24, 39, .22)" };
+  }
+  return {
+    disc: "#ffffff",
+    mark: "#ffc400",
+    outline: luminance > 0.55 ? "rgba(17, 24, 39, .42)" : "rgba(255, 255, 255, .26)",
+  };
+}
 function applyTheme() {
   state.appearanceMode = state.appearanceMode === "dark" ? "dark" : "light";
   const dark = state.appearanceMode === "dark";
@@ -698,7 +787,12 @@ function applyTheme() {
   document.documentElement.style.setProperty("--header-button-bg", state.headerButtonColor || defaultHeaderButtonColor());
   document.documentElement.style.setProperty("--header-button-text", state.headerButtonTextColor || defaultHeaderButtonTextColor());
   document.documentElement.style.setProperty("--header-text", state.headerTextColor || defaultHeaderTextColor());
-  document.documentElement.style.setProperty("--header-bg", state.headerColor || state.themeColor || "#28733b");
+  const headerBg = state.headerColor || state.themeColor || "#28733b";
+  const logoPalette = logoPaletteForHeader(headerBg);
+  document.documentElement.style.setProperty("--header-bg", headerBg);
+  document.documentElement.style.setProperty("--logo-disc", logoPalette.disc);
+  document.documentElement.style.setProperty("--logo-mark", logoPalette.mark);
+  document.documentElement.style.setProperty("--logo-outline", logoPalette.outline);
   document.documentElement.style.setProperty("--table-bg", state.tableColor || defaultTableColor());
   document.documentElement.style.setProperty("--bg", state.backgroundColor || fallbackBg);
   document.documentElement.style.setProperty("--surface", state.backgroundColor || fallbackBg);
@@ -725,6 +819,7 @@ function applyTheme() {
   if (el.clothColor) el.clothColor.value = state.clothColor || defaultSheetColor();
   syncAppearanceModeControls();
   syncButtonSurfaces();
+  syncColorResetButton();
 }
 function syncControlsFromState() {
   if (el.convention) el.convention.value = state.convention;
@@ -1875,15 +1970,17 @@ function renderPoolSheet(totals) {
   slots.forEach((slot) => drawClassicSlot(svg, slot));
 
   const fullyClosed = totals.every((total) => total.closed);
-  const totalPoolTarget = fullPoolTarget();
+  const poolKindLabel = state.poolClosingMode === "total" ? "общая" : "личная";
   svg.appendChild(node("circle", { cx: center.x, cy: center.y, r: g.centerRadius, class: fullyClosed ? "center-pool closed" : "center-pool" }));
-  svg.appendChild(text(center.x, center.y + 11, format(state.poolTarget), "sector-name center-value", "middle"));
-  svg.appendChild(text(center.x, center.y + 39, `общая ${format(totalPoolTarget)}`, "sector-small center-label", "middle"));
+  const centerValue = text(center.x, center.y, format(state.poolTarget), "sector-name center-value", "middle");
+  svg.appendChild(centerValue);
+  centerSvgTextOnPoint(centerValue, center.x, center.y);
+  svg.appendChild(text(center.x, center.y + 36, poolKindLabel, "sector-small center-label", "middle"));
   applySheetTextBackdrops(svg);
 }
 
 function drawFivePlayerSheet(svg, totals, center) {
-  const totalPoolTarget = fullPoolTarget();
+  const poolKindLabel = state.poolClosingMode === "total" ? "общая" : "личная";
   const outer = { x: 70, y: 35, width: 860, height: 930 };
   const inner = [
     { x: 500, y: 250 },
@@ -1917,8 +2014,10 @@ function drawFivePlayerSheet(svg, totals, center) {
 
   const fullyClosed = totals.every((total) => total.closed);
   svg.appendChild(node("circle", { cx: center.x, cy: center.y, r: 68, class: fullyClosed ? "center-pool closed" : "center-pool" }));
-  svg.appendChild(text(center.x, center.y + 11, format(state.poolTarget), "sector-name center-value", "middle"));
-  svg.appendChild(text(center.x, center.y + 43, `общая ${format(totalPoolTarget)}`, "sector-small center-label", "middle"));
+  const centerValue = text(center.x, center.y, format(state.poolTarget), "sector-name center-value", "middle");
+  svg.appendChild(centerValue);
+  centerSvgTextOnPoint(centerValue, center.x, center.y);
+  svg.appendChild(text(center.x, center.y + 40, poolKindLabel, "sector-small center-label", "middle"));
 
   const configs = [
     { x: 500, y: 150, seat: "С", width: 380, height: 220, colWidth: 82, rowHeight: 56 },
@@ -2184,9 +2283,10 @@ function drawPoolMountainTracks(svg, side, total) {
   const cfg = trackConfig(side);
   const group = node("g", {});
   const poolLine = drawPlayerTrackLine(group, cfg.pool, "▶", scoreHistory("pool", total.index));
-  drawPlayerTrackLine(group, cfg.mountain, "△", scoreHistory("mountain", total.index));
+  const mountainLine = drawPlayerTrackLine(group, cfg.mountain, "△", scoreHistory("mountain", total.index));
   svg.appendChild(group);
   centerPoolTrackInCorridor(svg, poolLine, side);
+  centerSvgTextOnPoint(mountainLine, cfg.mountain.x, cfg.mountain.y);
   if (state.poolClosingMode === "each" && total.closed) {
     svg.appendChild(text(cfg.closed.x, cfg.closed.y, "закрыл", "closed-text", "middle"));
   }
