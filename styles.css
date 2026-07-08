@@ -1,7 +1,7 @@
 @font-face {
   font-family: "Share Tech Rus";
   src: url("fonts/share-tech-rus.ttf") format("truetype");
-  font-display: swap;
+  font-display: block;
 }
 
 :root {
@@ -4306,4 +4306,9 @@ body:not(.game-started) #setupPanel #startButton {
 
 .install-app-button[hidden] {
   display: none !important;
+}
+
+/* Stable SVG text rendering after font load. */
+.pool-sheet {
+  text-rendering: geometricPrecision;
 }

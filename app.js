@@ -2055,10 +2055,10 @@ function renderPoolSheet(totals) {
   const fullyClosed = totals.every((total) => total.closed);
   const poolKindLabel = state.poolClosingMode === "total" ? "общая" : "личная";
   svg.appendChild(node("circle", { cx: center.x, cy: center.y, r: g.centerRadius, class: fullyClosed ? "center-pool closed" : "center-pool" }));
-  const centerValue = text(center.x, center.y, format(state.poolTarget), "sector-name center-value", "middle");
-  svg.appendChild(centerValue);
-  centerSvgTextOnPoint(centerValue, center.x, center.y);
-  svg.appendChild(text(center.x, center.y + 36, poolKindLabel, "sector-small center-label", "middle"));
+  const centerValueOffset = -4;
+  const centerLabelOffset = 34;
+  svg.appendChild(textCentered(center.x, center.y + centerValueOffset, format(state.poolTarget), "sector-name center-value"));
+  svg.appendChild(textCentered(center.x, center.y + centerLabelOffset, poolKindLabel, "sector-small center-label"));
   applySheetTextBackdrops(svg);
 }
 
@@ -2097,10 +2097,10 @@ function drawFivePlayerSheet(svg, totals, center) {
 
   const fullyClosed = totals.every((total) => total.closed);
   svg.appendChild(node("circle", { cx: center.x, cy: center.y, r: 68, class: fullyClosed ? "center-pool closed" : "center-pool" }));
-  const centerValue = text(center.x, center.y, format(state.poolTarget), "sector-name center-value", "middle");
-  svg.appendChild(centerValue);
-  centerSvgTextOnPoint(centerValue, center.x, center.y);
-  svg.appendChild(text(center.x, center.y + 40, poolKindLabel, "sector-small center-label", "middle"));
+  const centerValueOffset = -4;
+  const centerLabelOffset = 36;
+  svg.appendChild(textCentered(center.x, center.y + centerValueOffset, format(state.poolTarget), "sector-name center-value"));
+  svg.appendChild(textCentered(center.x, center.y + centerLabelOffset, poolKindLabel, "sector-small center-label"));
 
   const configs = [
     { x: 500, y: 150, seat: "С", width: 380, height: 220, colWidth: 82, rowHeight: 56 },
@@ -2566,10 +2566,7 @@ function drawWhistGrid(group, cfg, opponents, hasWrittenWhists) {
     const cellX = startX + col * colWidth + colWidth / 2;
     const cellY = startY + rowHeight / 2;
     const textNode = whistCellText(cellX, cellY, values, className);
-    if (textNode) {
-      group.appendChild(textNode);
-      centerSvgTextOnPoint(textNode, cellX, cellY);
-    }
+    if (textNode) group.appendChild(textNode);
   });
 }
 
@@ -3285,6 +3282,19 @@ function node(tag, attrs) {
 
 function text(x, y, value, className, anchor = "start") {
   const item = node("text", { x, y, class: className, "text-anchor": anchor });
+  item.textContent = value;
+  return item;
+}
+
+function textCentered(x, y, value, className) {
+  const item = node("text", {
+    x,
+    y,
+    class: className,
+    "text-anchor": "middle",
+    "dominant-baseline": "central",
+    "alignment-baseline": "central",
+  });
   item.textContent = value;
   return item;
 }
