@@ -1,4 +1,4 @@
-@font-face {
+﻿@font-face {
   font-family: "Share Tech Rus";
   src: url("fonts/share-tech-rus.ttf") format("truetype");
   font-display: block;
@@ -3745,6 +3745,32 @@ body.game-started #closedBadge {
   border-radius: 999px !important;
   z-index: 2 !important;
 }
+#closedBadge,
+body.game-started #closedBadge {
+  flex-wrap: wrap !important;
+  column-gap: .5ch !important;
+  row-gap: 2px !important;
+  max-width: min(460px, 100%) !important;
+  white-space: normal !important;
+}
+
+#closedBadge span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+#closedBadge span:not(:last-child)::after {
+  content: "·";
+  margin-left: .5ch;
+}
+
+@media (max-width: 1120px) {
+  #closedBadge,
+  body.game-started #closedBadge {
+    max-width: 330px !important;
+    text-align: center !important;
+  }
+}
 
 :root[data-theme="dark"] #closedBadge,
 :root[data-theme="dark"] body.game-started #closedBadge {
@@ -4365,3 +4391,5 @@ body:not(.game-started) #floatingShareButton,
 .floating-share-button {
   border-radius: 16px !important;
 }
+
+

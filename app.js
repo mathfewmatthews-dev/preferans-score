@@ -1,4 +1,4 @@
-﻿const state = {
+const state = {
   convention: "Сочи",
   poolTarget: 20,
   initialPoolTarget: 20,
@@ -1816,9 +1816,14 @@ function refresh() {
   const closedPool = displayedClosedPool(totals);
   const totalPoolTarget = fullPoolTarget();
   const poolProgress = totalPoolTarget ? Math.min(100, Math.round((closedPool / totalPoolTarget) * 100)) : 0;
-  el.closedBadge.textContent = state.poolClosingMode === "total"
-    ? `Общая пуля ${format(closedPool)} / ${format(totalPoolTarget)} · ${poolProgress}%`
-    : `${closed} из ${state.players.length} закрыли · Пуля ${format(closedPool)} / ${format(totalPoolTarget)} · ${poolProgress}%`;
+  const closedBadgeParts = state.poolClosingMode === "total"
+    ? [`Общая пуля ${format(closedPool)} / ${format(totalPoolTarget)}`, `${poolProgress}%`]
+    : [`${closed} из ${state.players.length} закрыли`, `Пуля ${format(closedPool)} / ${format(totalPoolTarget)}`, `${poolProgress}%`];
+  el.closedBadge.replaceChildren(...closedBadgeParts.map((part) => {
+    const span = document.createElement("span");
+    span.textContent = part;
+    return span;
+  }));
   const caption = `Пуля: ${state.convention} / ${state.players.length} игрока`;
   el.statusTitle.textContent = fullyClosed ? `Пуля закрыта · ${caption}` : `Игра до ${format(state.poolTarget)} · ${caption}`;
   renderPoolSheet(totals);
@@ -3014,15 +3019,31 @@ async function saveRemoteGame() {
   if (!ref) return;
   try {
     await ref.set({
-      state: cloneState(),
+      state: firestoreSafeValue(cloneState()),
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      clientUpdatedAt: state.remoteUpdatedAt || Date.now(),
+      clientUpdatedAt: Number(state.remoteUpdatedAt) || Date.now(),
     }, { merge: true });
     subscribeRemoteGame(state.gameId);
   } catch (error) {
     console.warn("Remote game save failed", error);
     showMessage(remoteSaveErrorMessage(error));
   }
+}
+
+function firestoreSafeValue(value) {
+  if (value === undefined || typeof value === "function" || typeof value === "symbol") return null;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.map(firestoreSafeValue);
+  if (typeof value === "object") {
+    const output = {};
+    Object.entries(value).forEach(([key, entry]) => {
+      if (entry === undefined || typeof entry === "function" || typeof entry === "symbol") return;
+      output[key] = firestoreSafeValue(entry);
+    });
+    return output;
+  }
+  return null;
 }
 
 function remoteSaveErrorMessage(error) {
@@ -3036,7 +3057,8 @@ function remoteSaveErrorMessage(error) {
     return `Не удалось сохранить общую игру${suffix}: нет соединения с Firestore.`;
   }
   if (code.includes("invalid-argument") || message.includes("Unsupported field value")) {
-    return `Не удалось сохранить общую игру${suffix}: Firestore отклонил данные партии.`;
+    const detail = message ? ` ${message.slice(0, 140)}` : "";
+    return `Не удалось сохранить общую игру${suffix}: Firestore отклонил данные партии.${detail}`;
   }
   return `Не удалось сохранить общую игру${suffix}. Проверьте Firestore, правила доступа и firebase-config.js.`;
 }
@@ -3560,28 +3582,3 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
