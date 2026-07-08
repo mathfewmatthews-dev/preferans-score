@@ -1,4 +1,4 @@
-const state = {
+﻿const state = {
   convention: "Сочи",
   poolTarget: 20,
   initialPoolTarget: 20,
@@ -2967,8 +2967,7 @@ function subscribeRemoteGame(gameId = state.gameId) {
   detachRemoteGame();
   remoteUnsubscribe = remoteGameRef(gameId).onSnapshot((snapshot) => {
     if (!snapshot.exists) return;
-    const data = snapshot.data() || {};
-    const remoteState = data.state;
+    const remoteState = remoteStateFromSnapshot(snapshot.data() || {});
     if (!remoteState) return;
     const normalized = normalizeState(remoteState);
     if (normalized.remoteUpdatedAt && normalized.remoteUpdatedAt === state.remoteUpdatedAt) return;
@@ -2994,7 +2993,12 @@ async function loadRemoteGame(gameId) {
       showMessage("Игра по ссылке не найдена. Возможно, ссылка создана до подключения Firebase.");
       return;
     }
-    const remoteState = normalizeState(snapshot.data()?.state || {});
+    const remoteStateValue = remoteStateFromSnapshot(snapshot.data() || {});
+    if (!remoteStateValue) {
+      showMessage("Игра по ссылке повреждена или сохранена в старом формате.");
+      return;
+    }
+    const remoteState = normalizeState(remoteStateValue);
     Object.assign(state, remoteState, { gameId });
     setGameUrl(gameId);
     document.body.classList.add("game-started");
@@ -3008,6 +3012,17 @@ async function loadRemoteGame(gameId) {
   }
 }
 
+function remoteStateFromSnapshot(data) {
+  if (typeof data.stateJson === "string") {
+    try {
+      return JSON.parse(data.stateJson);
+    } catch (error) {
+      console.warn("Remote game state JSON parse failed", error);
+      return null;
+    }
+  }
+  return data.state || null;
+}
 function queueRemoteSave() {
   if (!remoteAvailable || !remoteDb || !state.gameId) return;
   window.clearTimeout(remoteSaveTimer);
@@ -3019,7 +3034,8 @@ async function saveRemoteGame() {
   if (!ref) return;
   try {
     await ref.set({
-      state: firestoreSafeValue(cloneState()),
+      stateJson: JSON.stringify(firestoreSafeValue(cloneState())),
+      stateFormat: "json-v1",
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       clientUpdatedAt: Number(state.remoteUpdatedAt) || Date.now(),
     }, { merge: true });
@@ -3582,3 +3598,4 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
