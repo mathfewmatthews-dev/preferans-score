@@ -1,4 +1,4 @@
-const state = {
+﻿const state = {
   convention: "Сочи",
   poolTarget: 20,
   initialPoolTarget: 20,
@@ -2910,6 +2910,7 @@ function setupRemoteSync() {
   try {
     if (!window.firebase.apps.length) window.firebase.initializeApp(config);
     remoteDb = window.firebase.firestore();
+    remoteDb.settings({ ignoreUndefinedProperties: true });
     remoteAvailable = true;
   } catch (error) {
     remoteAvailable = false;
@@ -3020,8 +3021,24 @@ async function saveRemoteGame() {
     subscribeRemoteGame(state.gameId);
   } catch (error) {
     console.warn("Remote game save failed", error);
-    showMessage("Не удалось сохранить общую игру.");
+    showMessage(remoteSaveErrorMessage(error));
   }
+}
+
+function remoteSaveErrorMessage(error) {
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || "");
+  const suffix = code ? ` (${code})` : "";
+  if (code.includes("permission-denied") || message.includes("Missing or insufficient permissions")) {
+    return `Firestore запретил запись${suffix}. Проверьте и опубликуйте правила Firestore.`;
+  }
+  if (code.includes("unavailable") || code.includes("deadline-exceeded") || code.includes("network")) {
+    return `Не удалось сохранить общую игру${suffix}: нет соединения с Firestore.`;
+  }
+  if (code.includes("invalid-argument") || message.includes("Unsupported field value")) {
+    return `Не удалось сохранить общую игру${suffix}: Firestore отклонил данные партии.`;
+  }
+  return `Не удалось сохранить общую игру${suffix}. Проверьте Firestore, правила доступа и firebase-config.js.`;
 }
 
 function currentGameUrl() {
@@ -3543,6 +3560,7 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
 
 
 
