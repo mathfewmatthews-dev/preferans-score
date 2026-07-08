@@ -4087,3 +4087,186 @@ body:not(.game-started) #setupPanel #startButton {
   box-shadow: none !important;
   transform: none !important;
 }
+/* Mobile header menu and PWA modal fit */
+.mobile-menu-button {
+  display: none;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--header-button-text) 24%, transparent);
+  border-radius: 999px;
+  background: var(--header-button-bg);
+  color: var(--header-button-text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .14);
+}
+
+.mobile-menu-button span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform .18s ease, opacity .18s ease;
+}
+
+.app-header.menu-open .mobile-menu-button span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.app-header.menu-open .mobile-menu-button span:nth-child(2) {
+  opacity: 0;
+}
+
+.app-header.menu-open .mobile-menu-button span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+@media (max-width: 720px) {
+  .app-header {
+    min-height: 70px;
+    position: sticky;
+    top: 0;
+    z-index: 18;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand p {
+    font-size: 11px;
+  }
+
+  .brand h1 {
+    font-size: 22px;
+  }
+
+  .mobile-menu-button {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .app-header .header-actions {
+    grid-column: 1 / -1;
+    display: none !important;
+    width: 100%;
+    margin-top: 4px;
+    padding: 12px;
+    border: 1px solid var(--stripe-border);
+    border-radius: 16px;
+    background: var(--stripe-surface);
+    box-shadow: var(--neu-raised-soft, 0 8px 24px rgba(15, 23, 42, .12));
+  }
+
+  .app-header.menu-open .header-actions {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .app-header .header-actions > button,
+  .app-header .header-actions > label,
+  .app-header .game-actions > button {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+    text-align: center;
+    text-decoration: none;
+    padding-inline: 16px;
+  }
+
+  .app-header .game-actions,
+  body.game-started .app-header .game-actions {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 10px;
+  }
+
+  body:not(.game-started) .app-header .game-actions {
+    display: none !important;
+  }
+
+  .app-header .icon-button,
+  #undoButton,
+  #redoButton {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    line-height: 1 !important;
+  }
+
+  .modal {
+    align-items: stretch;
+    justify-content: center;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .modal-panel,
+  .confirm-panel,
+  .rules-panel,
+  .convention-settings-panel,
+  #recordModal .modal-panel,
+  .add-pool-modal .confirm-panel,
+  .score-confirm-modal .confirm-panel {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    margin: 0 auto !important;
+    padding: 16px !important;
+    overflow: auto !important;
+    border-radius: 16px !important;
+  }
+
+  #recordModal {
+    padding: 8px !important;
+  }
+
+  #recordModal .modal-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
+  #recordModal .field-grid.two,
+  #recordModal .field-grid,
+  #recordModal #declarerButtons,
+  #recordModal #contractButtons,
+  #recordModal .contract-strip,
+  #recordModal .role-buttons,
+  #recordModal .choice-strip,
+  #recordModal .type-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #recordModal .modal-head h2 {
+    font-size: clamp(30px, 9vw, 40px) !important;
+  }
+
+  #recordModal .type-choice {
+    min-height: 86px !important;
+    font-size: clamp(26px, 8vw, 34px) !important;
+  }
+
+  .confirm-actions,
+  #recordModal .wizard-actions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .confirm-actions button,
+  #recordModal .wizard-actions button {
+    min-width: 0;
+    flex: 1 1 140px;
+    min-height: 46px;
+  }
+}

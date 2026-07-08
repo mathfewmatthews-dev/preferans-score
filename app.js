@@ -118,6 +118,10 @@ let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
 
 const el = {
+  appHeader: document.querySelector(".app-header"),
+  mobileMenuButton: document.getElementById("mobileMenuButton"),
+  headerActions: document.getElementById("headerActions"),
+  themeColorMeta: document.querySelector('meta[name="theme-color"]'),
   convention: document.getElementById("convention"),
   poolTarget: document.getElementById("poolTarget"),
   themeColor: document.getElementById("themeColor"),
@@ -211,6 +215,7 @@ const el = {
 
 function initialize() {
   applyTheme();
+  registerServiceWorker();
   autosaveRestoreStatus = restoreAutosavedGame();
   renderConventionOptions();
   syncControlsFromState();
@@ -224,6 +229,14 @@ function initialize() {
 }
 
 function bindEvents() {
+  el.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
+  el.headerActions?.addEventListener("click", (event) => {
+    const action = event.target.closest("button, label");
+    if (action) window.setTimeout(closeMobileMenu, 0);
+  });
+  window.addEventListener("resize", () => {
+    if (window.matchMedia("(min-width: 721px)").matches) closeMobileMenu();
+  });
   el.playerCount.addEventListener("change", updateSetupPlayerCount);
   el.convention.addEventListener("change", selectConvention);
   el.conventionName.addEventListener("input", updateCustomConventionName);
@@ -299,6 +312,7 @@ function bindEvents() {
       closeRulesModal();
       closeConventionModal();
       closeColorSettings();
+      closeMobileMenu();
     }
   });
   el.undoButton.addEventListener("click", undoRecord);
@@ -790,6 +804,7 @@ function applyTheme() {
   const headerBg = state.headerColor || state.themeColor || "#28733b";
   const logoPalette = logoPaletteForHeader(headerBg);
   document.documentElement.style.setProperty("--header-bg", headerBg);
+  if (el.themeColorMeta) el.themeColorMeta.setAttribute("content", headerBg);
   document.documentElement.style.setProperty("--logo-disc", logoPalette.disc);
   document.documentElement.style.setProperty("--logo-mark", logoPalette.mark);
   document.documentElement.style.setProperty("--logo-outline", logoPalette.outline);
@@ -1093,6 +1108,31 @@ function openColorSettings() {
   el.colorSettingsDrawer.setAttribute("aria-hidden", "false");
 }
 
+function toggleMobileMenu() {
+  const open = !el.appHeader?.classList.contains("menu-open");
+  setMobileMenuOpen(open);
+}
+
+function closeMobileMenu() {
+  setMobileMenuOpen(false);
+}
+
+function setMobileMenuOpen(open) {
+  if (!el.appHeader || !el.mobileMenuButton) return;
+  el.appHeader.classList.toggle("menu-open", Boolean(open));
+  el.mobileMenuButton.setAttribute("aria-expanded", open ? "true" : "false");
+  el.mobileMenuButton.setAttribute("aria-label", open ? "Закрыть меню" : "Открыть меню");
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const protocol = window.location.protocol;
+  const local = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  if (protocol !== "https:" && !local) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
 function closeColorSettings() {
   el.colorSettingsDrawer.classList.remove("open");
   el.colorSettingsDrawer.setAttribute("aria-hidden", "true");
