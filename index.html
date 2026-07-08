@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Пуля преферанса</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="candelabra" aria-hidden="true">
+        <svg viewBox="0 0 96 96" role="img">
+          <path class="flame" d="M22 10c5 6 6 11 0 17-6-6-5-11 0-17Z"/>
+          <path class="flame" d="M48 6c6 8 7 15 0 23-7-8-6-15 0-23Z"/>
+          <path class="flame" d="M74 10c5 6 6 11 0 17-6-6-5-11 0-17Z"/>
+          <path d="M22 28v24M48 30v34M74 28v24M18 52h60M30 52c0 10 8 14 18 14s18-4 18-14M48 66v13M32 82h32M25 88h46M14 34h16M66 34h16M14 34v18c0 8 7 12 16 12M82 34v18c0 8-7 12-16 12"/>
+        </svg>
+      </div>
+      <div>
+        <p>Счётчик преферанса</p>
+        <h1>Пуля</h1>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="settingsButton" class="link-button" type="button">Настройки</button>
+      <button id="rulesButton" class="link-button" type="button">Правила игры</button>
+      <button id="conventionButton" class="link-button" type="button">Конвенция</button>
+      <button id="newGameButton" class="ghost-button" type="button">Новая игра</button>
+      <div class="game-actions">
+        <button id="openRecordButton" class="primary-button" type="button">Добавить запись</button>
+        <button id="undoButton" class="ghost-button icon-button" type="button" title="Отменить запись" aria-label="Отменить запись">↶</button>
+        <button id="redoButton" class="ghost-button icon-button" type="button" title="Повторить запись" aria-label="Повторить запись">↷</button>
+        <button id="resetButton" class="ghost-button" type="button">Очистить</button>
+      </div>
+        <button id="saveButton" class="ghost-button" type="button">Сохранить конвенцию</button>
+        <label class="ghost-button file-button">
+          Загрузить
+        <input id="loadInput" type="file" accept=".json,.pref.json,.pref-convention.json">
+        </label>
+      <button id="reportButton" class="primary-button" type="button">Отчёт</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="workspace">
+      <aside class="control-panel">
+        <section id="setupPanel" class="panel-block">
+          <div class="section-title">
+            <span>Партия</span>
+          </div>
+          <div class="field-grid two">
+            <label>
+              <span>Конвенция</span>
+              <select id="convention">
+                <option>Сочи</option>
+              <option>Питер</option>
+              </select>
+            </label>
+            <label>
+              <span>Размер пули</span>
+              <input id="poolTarget" type="number" min="1" max="1000" value="20">
+            </label>
+            <label class="full-row">
+              <span>Игроков</span>
+              <select id="playerCount">
+                <option>3</option>
+                <option>4</option>
+                <option>5</option>
+              </select>
+            </label>
+            <label class="full-row">
+              <span>Подсчёт очков</span>
+              <select id="scoreCountingMode">
+                <option value="live">В реальном времени</option>
+                <option value="manual">По запросу</option>
+              </select>
+            </label>
+            <label class="full-row">
+              <span>Закрытие пули</span>
+              <select id="poolClosingMode">
+                <option value="each">Каждый закрывает свою пулю</option>
+                <option value="total">Закрывается общая пуля</option>
+              </select>
+            </label>
+</div>
+          <div id="playersSetup" class="players-setup"></div>
+          <button id="startButton" class="primary-button wide" type="button">Начать партию</button>
+        </section>
+      </aside>
+
+      <section class="score-area">
+        <section class="pool-card">
+          <div class="pool-meta">
+            <div>
+              <p id="gameCaption">Пуля: Сочи / 3 игрока / до 20</p>
+              <h2 id="statusTitle">Игра до 20</h2>
+              <p id="gameConventionDescription" class="convention-description"></p>
+            </div>
+            <span id="closedBadge">0 из 3 закрыли</span>
+          </div>
+          <div class="pool-sheet-wrap">
+            <svg id="poolSheet" class="pool-sheet" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+          <div class="pool-actions">
+            <button id="calculateScoresButton" class="primary-button calculate-scores-button" type="button" hidden>Посчитать очки</button>
+            <button id="addPoolButton" class="primary-button add-pool-button" type="button" hidden>Добавить пулю</button>
+          </div>
+        </section>
+
+        <section class="data-row">
+          <div class="score-table-card">
+            <h2>Сводка</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Пуля</th>
+                  <th>Гора</th>
+                  <th>Висты</th>
+                  <th>Итог</th>
+                </tr>
+              </thead>
+              <tbody id="scoreBody"></tbody>
+            </table>
+          </div>
+          <div class="history-card">
+            <h2>Журнал</h2>
+            <ol id="historyList"></ol>
+          </div>
+        </section>
+      </section>
+    </section>
+    <p id="message" class="message global-message" role="status"></p>
+    <button id="floatingRecordButton" class="primary-button floating-record-button" type="button" aria-label="Добавить запись">+</button>
+  </main>
+  <div id="colorSettingsDrawer" class="settings-drawer" aria-hidden="true">
+    <div class="settings-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="colorSettingsTitle">
+      <div class="modal-head">
+        <div>
+          <p>Внешний вид</p>
+          <h2 id="colorSettingsTitle">Настройки</h2>
+        </div>
+        <button id="closeSettingsButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="mode-setting">
+        <span>Тема</span>
+        <div class="theme-segment" role="group" aria-label="Тема интерфейса">
+          <button id="lightModeButton" type="button" aria-pressed="true">Light</button>
+          <button id="darkModeButton" type="button" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+      <div class="color-settings-section">
+        <h3>Цвета хедера</h3>
+        <div class="color-settings-grid">
+          <label class="color-field">
+            <span>Цвет хедера</span>
+            <input id="headerColor" type="color" value="#28733b">
+          </label>
+          <label class="color-field">
+            <span>Кнопки в хедере</span>
+            <input id="headerButtonColor" type="color" value="#ffffff">
+          </label>
+          <label class="color-field">
+            <span>Текст кнопок хедера</span>
+            <input id="headerButtonTextColor" type="color" value="#18202a">
+          </label>
+          <label class="color-field">
+            <span>Текст хедера</span>
+            <input id="headerTextColor" type="color" value="#ffffff">
+          </label>
+        </div>
+      </div>
+      <div class="color-settings-section">
+        <h3>Настройки поля</h3>
+        <div class="color-settings-grid">
+          <label class="color-field">
+            <span>Остальные кнопки</span>
+            <input id="themeColor" type="color" value="#28733b">
+          </label>
+          <label class="color-field">
+            <span>Текст остальных кнопок</span>
+            <input id="buttonTextColor" type="color" value="#ffffff">
+          </label>
+          <label class="color-field">
+            <span>Цвет фона</span>
+            <input id="backgroundColor" type="color" value="#eef2f7">
+          </label>
+          <label class="color-field">
+            <span>Цвет стола</span>
+            <input id="tableColor" type="color" value="#ffffff">
+          </label>
+          <label class="color-field">
+            <span>Цвет сукна</span>
+            <input id="clothColor" type="color" value="#ffffff">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="conventionModal" class="modal convention-modal" aria-hidden="true">
+    <section id="conventionPanel" class="convention-settings-panel" role="dialog" aria-modal="true" aria-labelledby="conventionSettingsTitle">
+      <div class="modal-head">
+        <div>
+          <p>Параметры записи</p>
+          <h2 id="conventionSettingsTitle">Настройки конвенции</h2>
+        </div>
+        <button id="closeConventionButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+<div class="convention-panel-body">
+            <label>
+              <span>Название</span>
+              <input id="conventionName" type="text" value="Сочи">
+            </label>
+            <div class="settings-table">
+            <div class="settings-head"><span>Общие</span></div>
+            <label>
+              <span>Штраф за ремиз, множитель<small>Во сколько раз стоимость игры умножается за каждую недобранную взятку играющего.</small></span>
+              <input data-convention-setting="gamePenaltyMultiplier" type="number" min="0" step="0.5">
+            </label>
+            <label>
+              <span>Пересчёт единицы пули<small>Сколько вистов даёт единица разницы в пуле при итоговом балансе. В Питере обычно 20.</small></span>
+              <input data-convention-setting="poolUnit" type="number" min="0" step="0.5">
+            </label>
+            <label>
+              <span>Пересчёт единицы горы<small>Сколько вистов даёт единица разницы в горе при итоговом балансе. Обычно 10, включая Питер и Сочи.</small></span>
+              <input data-convention-setting="mountainUnit" type="number" min="0" step="0.5">
+            </label>
+            <label>
+              <span>Мизер считается игрой<small>Сыгранный мизер выводит из прогрессии распасов как обычная сыгранная игра.</small></span>
+              <input data-convention-setting="misereExitsRaspass" type="checkbox">
+            </label>
+            <label>
+              <span>Уход без 3<small>Показывать в записи хода кнопку, которая быстро ставит играющему ремиз в 3 взятки.</small></span>
+              <input data-convention-setting="underThreeLoss" type="checkbox">
+            </label>
+            <div class="settings-head"><span>Вист</span></div>
+            <label>
+              <span>Висты за взятку, множитель<small>Во сколько раз стоимость игры умножается при записи вистов за взятки защитников.</small></span>
+              <input data-convention-setting="whistTrickMultiplier" type="number" min="0" step="0.5">
+            </label>
+            <label>
+              <span>Ремиз играющего<small>Джентльменский делит висты ремиза между вистующим и пасующим; жлобский оставляет фактические висты вистующему, пасующему — только консоляцию.</small></span>
+              <select data-convention-setting="declarerRemizWhistMode">
+                <option value="gentleman">Джентльменский</option>
+                <option value="greedy">Жлобский</option>
+              </select>
+            </label>
+            <label>
+              <span>Ответственность вистующих<small>Полуответственный вист штрафует за недобор вполовину штрафа играющего; ответственный — в полном размере.</small></span>
+              <select data-convention-setting="whistResponsibility">
+                <option value="half">Полуответственный</option>
+                <option value="full">Ответственный</option>
+              </select>
+            </label>
+            <label>
+              <span>Висты отдыхающему за взятку в прикупе<small>Для игры вчетвером или впятером: писать ли отдыхающему висты за взятку в прикупе.</small></span>
+              <input data-convention-setting="restingTalonPool" type="checkbox">
+            </label>
+            <label>
+              <span>Штраф отдыхающему за взятки в прикупе<small>Для игры вчетвером или впятером: писать ли отдыхающему в гору за взятки в прикупе на распасах.</small></span>
+              <input data-convention-setting="restingRaspassMountain" type="checkbox">
+            </label>
+            <label>
+              <span>Штраф при недоборе вистующих<small>Как распределять штраф между вистующими и пасующими при недоборе обязательных взяток.</small></span>
+              <select data-convention-setting="whistShortfallDistribution">
+                <option value="whisters">Только вистующие</option>
+                <option value="whisters-passers">Вистующие и пасующие</option>
+                <option value="passers">Только пасующие</option>
+              </select>
+            </label>
+            <label>
+              <span>Тип обязательного минимума<small>На двоих проверяет суммарный минимум, на каждого — долю каждого вистующего.</small></span>
+              <select data-convention-setting="whistRequirementMode">
+                <option value="together">Висты на двоих</option>
+                <option value="each">Висты на каждого</option>
+              </select>
+            </label>
+            <label>
+              <span>Минимум взяток вистующих без штрафа: игра 6<small>Сколько взяток должны взять вистующие на шестёрной игре. По умолчанию 4.</small></span>
+              <input data-convention-setting="minWhist6" type="number" min="1" max="4" step="1">
+            </label>
+            <label>
+              <span>Минимум взяток вистующих без штрафа: игра 7<small>Сколько взяток должны взять вистующие на семерной игре. По умолчанию 2.</small></span>
+              <input data-convention-setting="minWhist7" type="number" min="1" max="3" step="1">
+            </label>
+            <label>
+              <span>Минимум взяток вистующих без штрафа: игра 8<small>Сколько взяток должны взять вистующие на восьмерной игре. По умолчанию 1.</small></span>
+              <input data-convention-setting="minWhist8" type="number" min="1" max="2" step="1">
+            </label>
+            <label>
+              <span>Минимум взяток вистующих без штрафа: игра 9<small>Сколько взяток должны взять вистующие на девятерной игре. По умолчанию 1.</small></span>
+              <input data-convention-setting="minWhist9" type="number" min="0" max="1" step="1">
+            </label>
+            <label>
+              <span>Минимум взяток вистующих без штрафа: игра 10<small>Сколько взяток должны взять вистующие на десятерной игре. По умолчанию 0.</small></span>
+              <input data-convention-setting="minWhist10" type="number" min="0" max="1" step="1">
+            </label>
+            <div class="settings-head"><span>Распасы</span></div>
+            <label>
+              <span>Прогрессия распасов<small>Последовательность уровня распасов: 6 даёт стоимость шестёрной игры, 7 — семерной, 8 — восьмерной.</small></span>
+              <select data-convention-setting="raspassProgression">
+                <option value="none">Без прогрессии</option>
+                <option value="6-7-8">6-7-8</option>
+                <option value="6-7-7-8">6-7-7-8</option>
+                <option value="6-7-8-9">6-7-8-9</option>
+              </select>
+            </label>
+            <label>
+              <span>Остановка прогрессии<small>Круговая всегда двигается дальше; круговая с паузой ждёт сыгранную игру; до сыгранной игры держит максимум до выхода.</small></span>
+              <select data-convention-setting="raspassProgressionStop">
+                <option value="cycle">Круговая, всегда продолжать</option>
+                <option value="cycle-until-game">Круговая, пауза до сыгранной игры</option>
+                <option value="until-game">До сыгранной игры</option>
+              </select>
+            </label>
+            <label>
+              <span>Выход из распасов<small>Какая сыгранная игра сбрасывает прогрессию распасов.</small></span>
+              <select data-convention-setting="raspassExitCondition">
+                <option value="game">Сыгранная игра</option>
+                <option value="one-whister-no-penalty">Сыгранная игра | Вистует как минимум один без штрафа</option>
+                <option value="both-whist-together">Сыгранная игра | Вистуют оба без штрафа | Висты на двоих</option>
+                <option value="both-whist-each">Сыгранная игра | Вистуют оба без штрафа | Висты на каждого</option>
+                <option value="half-whist">Сыгранная игра с полувистом</option>
+              </select>
+            </label>
+            <label>
+              <span>Прогрессия игр для выхода<small>Минимальный контракт, который может вывести из распасов.</small></span>
+              <select data-convention-setting="raspassExitGameProgression">
+                <option value="none">Без прогрессии</option>
+                <option value="6-7-8">6-7-8</option>
+                <option value="6-7-7-8">6-7-7-8</option>
+                <option value="6-7-8-9">6-7-8-9</option>
+              </select>
+            </label>
+            <label>
+              <span>Писать в пулю за 0 взяток<small>Если игрок на распасах не взял ни одной взятки, записать ему в пулю стоимость текущего уровня распасов.</small></span>
+              <input data-convention-setting="raspassZeroTricksPool" type="checkbox">
+            </label>
+            <label class="settings-comments">
+              <span>Комментарий<small>Дополнительные договорённости по конвенции, которые не покрыты полями выше.</small></span>
+              <textarea data-convention-setting="notes" rows="4"></textarea>
+            </label>
+            </div>
+          </div>
+    </section>
+  </div>
+
+  <div id="recordModal" class="modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="recordTitle">
+      <div class="modal-head">
+        <div>
+          <p>Новая запись</p>
+          <h2 id="recordTitle">Тип записи</h2>
+        </div>
+        <button id="closeRecordButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+
+      <div class="steps">
+        <span id="stepDot1" class="active">1</span>
+        <span id="stepDot2">2</span>
+        <span id="stepDot3">3</span>
+      </div>
+
+      <section class="wizard-step" data-step="1">
+        <h3>Тип записи</h3>
+        <div class="type-grid" id="typeChoices">
+          <button class="type-choice" data-type="Взятки" type="button">Взятки</button>
+          <button class="type-choice" data-type="Мизер" type="button">Мизер</button>
+          <button class="type-choice" data-type="Распасы" type="button">Распасы</button>
+          <button class="type-choice" data-type="Ручной ввод" type="button">Ручной ввод</button>
+        </div>
+        <select id="gameType" class="hidden-select" aria-label="Тип записи">
+          <option value=""></option>
+          <option>Взятки</option>
+          <option>Распасы</option>
+          <option>Мизер</option>
+          <option>Ручной ввод</option>
+        </select>
+      </section>
+
+      <section class="wizard-step" data-step="2" hidden>
+        <h3 id="recordDetailsTitle">Кто играет</h3>
+        <div class="field-grid two">
+          <label id="declarerField">
+            <span>Играет</span>
+            <div id="declarerButtons" class="choice-strip"></div>
+            <select id="declarer" class="hidden-select"></select>
+          </label>
+          <label id="contractField">
+            <span>Контракт</span>
+            <div id="contractButtons" class="choice-strip contract-strip"></div>
+            <select id="contract" class="hidden-select">
+              <option>6</option>
+              <option>7</option>
+              <option>8</option>
+              <option>9</option>
+              <option>10</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="misereCardsPanel" class="misere-cards-panel" hidden>
+          <h4>Карты играющего</h4>
+          <div class="misere-card-row">
+            <span>♠️</span>
+            <div class="misere-card-buttons">
+              <button type="button" data-misere-card="♠ A">A</button>
+              <button type="button" data-misere-card="♠ K">K</button>
+              <button type="button" data-misere-card="♠ Q">Q</button>
+              <button type="button" data-misere-card="♠ J">J</button>
+              <button type="button" data-misere-card="♠ 10">10</button>
+              <button type="button" data-misere-card="♠ 9">9</button>
+              <button type="button" data-misere-card="♠ 8">8</button>
+              <button type="button" data-misere-card="♠ 7">7</button>
+            </div>
+          </div>
+          <div class="misere-card-row">
+            <span>♣️</span>
+            <div class="misere-card-buttons">
+              <button type="button" data-misere-card="♣ A">A</button>
+              <button type="button" data-misere-card="♣ K">K</button>
+              <button type="button" data-misere-card="♣ Q">Q</button>
+              <button type="button" data-misere-card="♣ J">J</button>
+              <button type="button" data-misere-card="♣ 10">10</button>
+              <button type="button" data-misere-card="♣ 9">9</button>
+              <button type="button" data-misere-card="♣ 8">8</button>
+              <button type="button" data-misere-card="♣ 7">7</button>
+            </div>
+          </div>
+          <div class="misere-card-row">
+            <span>♦️</span>
+            <div class="misere-card-buttons">
+              <button type="button" data-misere-card="♦ A">A</button>
+              <button type="button" data-misere-card="♦ K">K</button>
+              <button type="button" data-misere-card="♦ Q">Q</button>
+              <button type="button" data-misere-card="♦ J">J</button>
+              <button type="button" data-misere-card="♦ 10">10</button>
+              <button type="button" data-misere-card="♦ 9">9</button>
+              <button type="button" data-misere-card="♦ 8">8</button>
+              <button type="button" data-misere-card="♦ 7">7</button>
+            </div>
+          </div>
+          <div class="misere-card-row">
+            <span>♥️</span>
+            <div class="misere-card-buttons">
+              <button type="button" data-misere-card="♥ A">A</button>
+              <button type="button" data-misere-card="♥ K">K</button>
+              <button type="button" data-misere-card="♥ Q">Q</button>
+              <button type="button" data-misere-card="♥ J">J</button>
+              <button type="button" data-misere-card="♥ 10">10</button>
+              <button type="button" data-misere-card="♥ 9">9</button>
+              <button type="button" data-misere-card="♥ 8">8</button>
+              <button type="button" data-misere-card="♥ 7">7</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="manualPanel" class="manual-panel">
+          <div class="field-grid two">
+            <label>
+              <span>Кому</span>
+              <select id="manualPlayer"></select>
+            </label>
+            <label>
+              <span>Куда</span>
+              <select id="manualArea">
+                <option>Гора</option>
+                <option>Пуля</option>
+                <option>Висты</option>
+              </select>
+            </label>
+            <label>
+              <span>На кого</span>
+              <select id="manualTarget"></select>
+            </label>
+            <label>
+              <span>Сколько</span>
+              <input id="manualAmount" type="number" step="0.5" value="0">
+            </label>
+          </div>
+          <label class="full-field">
+            <span>Комментарий</span>
+            <input id="manualNote" type="text" placeholder="Необязательно">
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard-step" data-step="3" hidden>
+        <h3>Карты мизера</h3>
+        <div id="misereReviewPanel" class="misere-review-panel">
+          <h4>Карты в игре</h4>
+          <div id="misereReviewCards" class="misere-review-cards"></div>
+        </div>
+      </section>
+
+      <section class="wizard-step" data-step="round" hidden>
+        <h3 id="roundStepTitle">Висты и взятки</h3>
+        <div class="round-card">
+          <div class="round-head">
+            <span>Игрок</span>
+            <span id="roundRoleColumn">Вист</span>
+            <span>Взятки</span>
+          </div>
+          <div id="roundRows" class="round-rows"></div>
+        </div>
+      </section>
+
+      <div class="wizard-actions">
+        <button id="prevStepButton" class="ghost-button" type="button">Назад</button>
+        <button id="nextStepButton" class="primary-button" type="button">Далее</button>
+        <button id="addButton" class="primary-button" type="button">Записать ход</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scoreConfirmModal" class="modal score-confirm-modal" aria-hidden="true">
+    <div class="confirm-panel" role="dialog" aria-modal="true" aria-labelledby="scoreConfirmTitle">
+      <h2 id="scoreConfirmTitle">Игра ещё не завершена</h2>
+      <p>Игра ещё не завершена. Вы действительно хотите рассчитать очки?</p>
+      <div class="confirm-actions">
+        <button id="cancelScoreCalculationButton" class="ghost-button" type="button">Отмена</button>
+        <button id="confirmScoreCalculationButton" class="primary-button" type="button">Рассчитать</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="addPoolModal" class="modal add-pool-modal" aria-hidden="true">
+    <div class="confirm-panel" role="dialog" aria-modal="true" aria-labelledby="addPoolTitle">
+      <h2 id="addPoolTitle">Добавить пулю</h2>
+      <p id="addPoolHint">Текущий размер: 20</p>
+      <label class="full-field">
+        <span>Новый размер пули</span>
+        <input id="newPoolTarget" type="number" min="1" step="1" value="40">
+      </label>
+      <div class="confirm-actions">
+        <button id="cancelAddPoolButton" class="ghost-button" type="button">Отмена</button>
+        <button id="confirmAddPoolButton" class="primary-button" type="button">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rulesModal" class="modal rules-modal" aria-hidden="true">
+    <div class="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+      <div class="modal-head">
+        <div>
+          <p>Справка</p>
+          <h2 id="rulesTitle">Правила игры</h2>
+        </div>
+        <button id="closeRulesButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="rules-content">
+        <section>
+          <h3>Цель</h3>
+          <p>Преферанс — игра на взятки. Игроки стараются выполнять заказанные обязательства и получать положительный итоговый счёт. В партии ведут три основные записи: пулю, гору и висты. Пуля показывает сыгранные обязательства, гора — штрафы, висты — расчёты между игроками.</p>
+        </section>
+        <section>
+          <h3>Ход партии</h3>
+          <p>Каждая сдача начинается с раздачи карт и торговли. Игроки по очереди называют игру, которую готовы сыграть, или пасуют. Победитель торговли становится играющим, берёт прикуп, сносит две карты и объявляет окончательный заказ. После розыгрыша взятки записываются в пулю, гору и висты.</p>
+        </section>
+        <section>
+          <h3>Ход при контракте</h3>
+          <p>В обычной игре играющий заказывает контракт от 6 до 10 взяток и должен взять не меньше заявленного. Остальные игроки решают, вистовать или пасовать. Если играющий выполнил контракт, он пишет стоимость игры в пулю, а вистующие получают висты за свои взятки. Если контракт не выполнен, играющий получает штраф в гору за недобор.</p>
+          <p>Стандартная стоимость игр неизменна: 6 — 2, 7 — 4, 8 — 6, 9 — 8, 10 — 10. Конвенция может менять множители штрафов и вистов, но не базовую стоимость контрактов.</p>
+        </section>
+        <section>
+          <h3>Распасы</h3>
+          <p>На распасах нет играющего, контракта и вистующих: каждый играет сам за себя и старается взять как можно меньше взяток. Обычно каждая взятка на распасах записывается в гору, а цена и прогрессия распасов задаются конвенцией.</p>
+        </section>
+        <section>
+          <h3>Мизер</h3>
+          <p>В мизере играющий обязуется не взять ни одной взятки. Мизер имеет стандартную стоимость 10. В мизере нет вистующих: остальные игроки участвуют в розыгрыше, но не получают вист за взятки. Если играющий не взял взяток, он пишет мизер в пулю; каждая взятая им взятка считается ремизом и даёт штраф в гору.</p>
+        </section>
+        <section>
+          <h3>Паровоз в мизере</h3>
+          <p>Паровозом называют ситуацию, когда играющий в мизере вынужден брать серию взяток подряд или почти подряд из-за расположения старших карт и выходов соперников. Такие карты удобно фиксировать перед записью хода, чтобы не держать их отдельно на бумаге и потом понимать, почему мизер был сыгран или провален.</p>
+        </section>
+        <section>
+          <h3>Запись очков</h3>
+          <p>Пуля, гора и висты пересчитываются в итоговый счёт. Положительный результат дают закрытая пуля и полученные висты; гора уменьшает итог. При ручном подсчёте можно откладывать итоговый расчёт до нужного момента, но сами записи ходов сохраняются в журнале.</p>
+        </section>
+        <section>
+          <h3>Конвенция</h3>
+          <p>Конвенция задаёт договорённости записи: множители штрафов и вистов, цену распасов, жлобский вист, правила прикупа и распределение штрафов. Она не меняет базовую стоимость игр и мизера.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+

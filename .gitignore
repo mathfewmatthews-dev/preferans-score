@@ -1,0 +1,9 @@
+dist/
+*.exe
+*.zip
+Program.cs
+build-windows.bat
+.codex-edge-profile-*/
+codex-screenshots/
+.DS_Store
+Thumbs.db
