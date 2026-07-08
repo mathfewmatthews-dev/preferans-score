@@ -160,7 +160,8 @@
         </div>
         <button id="closeSettingsButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
       </div>
-      <div class="mode-setting">
+      <div class="settings-drawer-content">
+        <div class="mode-setting">
         <span>Тема</span>
         <div class="theme-segment" role="group" aria-label="Тема интерфейса">
           <button id="lightModeButton" type="button" aria-pressed="true">Light</button>
@@ -213,7 +214,11 @@
           </label>
         </div>
       </div>
-      <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
+        <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
+      </div>
+      <div id="installAppFooter" class="settings-drawer-footer" hidden>
+        <button id="installAppButton" class="primary-button install-app-button" type="button" hidden>📲 Установить на устройство</button>
+      </div>
     </div>
   </div>
 

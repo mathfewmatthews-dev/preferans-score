@@ -4270,3 +4270,40 @@ body:not(.game-started) #setupPanel #startButton {
     min-height: 46px;
   }
 }
+/* Fixed install footer in settings drawer */
+.settings-drawer-panel {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.settings-drawer-content {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.settings-drawer-footer {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--stripe-border);
+  background: var(--stripe-surface);
+}
+
+.settings-drawer-footer[hidden] {
+  display: none !important;
+}
+
+.install-app-button {
+  width: 100%;
+  min-height: 48px;
+  background: var(--accent) !important;
+  color: var(--button-text) !important;
+  border-color: color-mix(in srgb, var(--accent) 82%, black) !important;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 24%, transparent) !important;
+}
+
+.install-app-button[hidden] {
+  display: none !important;
+}

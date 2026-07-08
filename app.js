@@ -116,6 +116,7 @@ let wizardStep = 1;
 let wasFullyClosed = false;
 let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
+let deferredInstallPrompt = null;
 
 const el = {
   appHeader: document.querySelector(".app-header"),
@@ -199,6 +200,8 @@ const el = {
   colorSettingsDrawer: document.getElementById("colorSettingsDrawer"),
   closeSettingsButton: document.getElementById("closeSettingsButton"),
   resetColorSettingsButton: document.getElementById("resetColorSettingsButton"),
+  installAppFooter: document.getElementById("installAppFooter"),
+  installAppButton: document.getElementById("installAppButton"),
   conventionModal: document.getElementById("conventionModal"),
   closeConventionButton: document.getElementById("closeConventionButton"),
   rulesModal: document.getElementById("rulesModal"),
@@ -251,6 +254,9 @@ function bindEvents() {
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
   el.resetColorSettingsButton?.addEventListener("click", resetColorSettings);
+  el.installAppButton?.addEventListener("click", installApp);
+  window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  window.addEventListener("appinstalled", handleAppInstalled);
   el.lightModeButton.addEventListener("click", () => setAppearanceMode("light"));
   el.darkModeButton.addEventListener("click", () => setAppearanceMode("dark"));
   el.poolClosingMode.addEventListener("change", () => {
@@ -1103,7 +1109,44 @@ function closeRecordWizard() {
   showMessage("");
 }
 
+function isStandalonePwa() {
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+}
+
+function handleBeforeInstallPrompt(event) {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  syncInstallAppButton();
+}
+
+function handleAppInstalled() {
+  deferredInstallPrompt = null;
+  syncInstallAppButton();
+}
+
+function syncInstallAppButton() {
+  const available = Boolean(deferredInstallPrompt) && !isStandalonePwa();
+  if (el.installAppFooter) el.installAppFooter.hidden = !available;
+  if (el.installAppButton) el.installAppButton.hidden = !available;
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt || isStandalonePwa()) {
+    syncInstallAppButton();
+    return;
+  }
+  const promptEvent = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  syncInstallAppButton();
+  promptEvent.prompt();
+  try {
+    await promptEvent.userChoice;
+  } finally {
+    syncInstallAppButton();
+  }
+}
 function openColorSettings() {
+  syncInstallAppButton();
   el.colorSettingsDrawer.classList.add("open");
   el.colorSettingsDrawer.setAttribute("aria-hidden", "false");
 }
