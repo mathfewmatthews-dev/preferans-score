@@ -1959,7 +1959,10 @@ function updateGameControls() {
   el.resetButton.disabled = disabled;
   el.reportButton.disabled = disabled;
   el.floatingRecordButton.disabled = disabled;
-  if (el.floatingShareButton) el.floatingShareButton.disabled = disabled;
+  if (el.floatingShareButton) {
+    el.floatingShareButton.disabled = disabled;
+    el.floatingShareButton.hidden = disabled;
+  }
   el.saveButton.textContent = gameStarted() ? "Сохранить игру" : "Сохранить конвенцию";
 }
 
@@ -2976,13 +2979,13 @@ function subscribeRemoteGame(gameId = state.gameId) {
 
 async function loadRemoteGame(gameId) {
   if (!remoteAvailable || !remoteDb) {
-    showMessage("Firebase не настроен. Добавьте параметры проекта в firebase-config.js.");
+    showMessage("Firebase не подключён. Проверьте firebase-config.js и подключение к сети.");
     return;
   }
   try {
     const snapshot = await remoteGameRef(gameId).get();
     if (!snapshot.exists) {
-      showMessage("Игра по ссылке не найдена.");
+      showMessage("Игра по ссылке не найдена. Возможно, ссылка создана до подключения Firebase.");
       return;
     }
     const remoteState = normalizeState(snapshot.data()?.state || {});
@@ -2995,7 +2998,7 @@ async function loadRemoteGame(gameId) {
     subscribeRemoteGame(gameId);
   } catch (error) {
     console.warn("Remote game load failed", error);
-    showMessage("Не удалось загрузить игру по ссылке.");
+    showMessage("Не удалось загрузить игру по ссылке. Проверьте Firestore и правила доступа.");
   }
 }
 
