@@ -4312,3 +4312,37 @@ body:not(.game-started) #setupPanel #startButton {
 .pool-sheet {
   text-rendering: geometricPrecision;
 }
+
+/* Shared game floating action. */
+.floating-share-button {
+  position: fixed;
+  right: max(128px, calc(env(safe-area-inset-right) + 128px));
+  bottom: max(42px, calc(env(safe-area-inset-bottom) + 42px));
+  z-index: 19;
+  width: 72px;
+  height: 72px;
+  min-height: 72px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 34px;
+  line-height: 1;
+  display: none;
+  place-items: center;
+  text-align: center;
+}
+
+body.game-started .floating-share-button {
+  display: grid;
+}
+
+body:not(.game-started) .floating-share-button {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .floating-share-button,
+  body.game-started .floating-share-button {
+    right: max(104px, calc(env(safe-area-inset-right) + 104px)) !important;
+    bottom: max(22px, calc(env(safe-area-inset-bottom) + 22px)) !important;
+  }
+}

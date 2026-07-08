@@ -1,0 +1,8 @@
+﻿rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{gameId} {
+      allow read, write: if gameId.matches('^[A-Za-z0-9_-]{16,64}$');
+    }
+  }
+}

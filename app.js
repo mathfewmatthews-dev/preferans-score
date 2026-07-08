@@ -29,6 +29,8 @@ const state = {
   lastChanged: null,
   history: [],
   customConventions: [],
+  gameId: null,
+  remoteUpdatedAt: null,
 };
 
 const STANDARD_CONVENTIONS = {
@@ -117,6 +119,11 @@ let wasFullyClosed = false;
 let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
 let deferredInstallPrompt = null;
+let remoteDb = null;
+let remoteUnsubscribe = null;
+let remoteSaveTimer = null;
+let applyingRemoteState = false;
+let remoteAvailable = false;
 
 const el = {
   appHeader: document.querySelector(".app-header"),
@@ -183,6 +190,7 @@ const el = {
   historyList: document.getElementById("historyList"),
   openRecordButton: document.getElementById("openRecordButton"),
   floatingRecordButton: document.getElementById("floatingRecordButton"),
+  floatingShareButton: document.getElementById("floatingShareButton"),
   recordModal: document.getElementById("recordModal"),
   recordTitle: document.getElementById("recordTitle"),
   closeRecordButton: document.getElementById("closeRecordButton"),
@@ -219,7 +227,9 @@ const el = {
 function initialize() {
   applyTheme();
   registerServiceWorker();
-  autosaveRestoreStatus = restoreAutosavedGame();
+  setupRemoteSync();
+  const urlGameId = getUrlGameId();
+  autosaveRestoreStatus = urlGameId ? "" : restoreAutosavedGame();
   renderConventionOptions();
   syncControlsFromState();
   renderConventionPanel();
@@ -228,6 +238,7 @@ function initialize() {
   hydrateSelectors();
   renderRoundRows();
   refresh();
+  if (urlGameId) loadRemoteGame(urlGameId);
   if (autosaveRestoreStatus === "failed") showMessage("Не удалось восстановить автосохранение.");
 }
 
@@ -281,6 +292,7 @@ function bindEvents() {
   el.manualArea.addEventListener("change", updateManualTargetState);
   el.openRecordButton.addEventListener("click", openRecordWizard);
   el.floatingRecordButton.addEventListener("click", openRecordWizard);
+  el.floatingShareButton?.addEventListener("click", shareCurrentGame);
   el.closeRecordButton.addEventListener("click", closeRecordWizard);
   el.recordModal.addEventListener("click", (event) => {
     if (event.target === el.recordModal) closeRecordWizard();
@@ -389,11 +401,13 @@ function cloneConvention(convention) {
 
 function saveAutosavedGame() {
   if (!gameStarted()) return;
+  if (!applyingRemoteState) state.remoteUpdatedAt = Date.now();
   try {
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ started: true, state }));
   } catch (error) {
     // Local storage can be unavailable in some privacy modes; manual save still works.
   }
+  if (!applyingRemoteState) queueRemoteSave();
 }
 
 function clearAutosavedGame() {
@@ -889,8 +903,11 @@ function startGame() {
   state.lastScoreDelta = state.players.map(() => 0);
   state.lastChanged = null;
   state.history = [];
+  state.gameId = generateGameToken();
+  state.remoteUpdatedAt = Date.now();
   undoStack = [];
   redoStack = [];
+  setGameUrl(state.gameId);
   document.body.classList.add("game-started");
   closeConventionModal();
   applyTheme();
@@ -1942,6 +1959,7 @@ function updateGameControls() {
   el.resetButton.disabled = disabled;
   el.reportButton.disabled = disabled;
   el.floatingRecordButton.disabled = disabled;
+  if (el.floatingShareButton) el.floatingShareButton.disabled = disabled;
   el.saveButton.textContent = gameStarted() ? "Сохранить игру" : "Сохранить конвенцию";
 }
 
@@ -2705,6 +2723,10 @@ function resetScores() {
   state.scoresCalculated = state.scoreCountingMode !== "manual";
   state.raspassLevel = 0;
   state.history = [];
+  state.gameId = null;
+  state.remoteUpdatedAt = null;
+  detachRemoteGame();
+  clearGameUrl();
   undoStack = [];
   redoStack = [];
   document.body.classList.remove("game-started");
@@ -2744,6 +2766,10 @@ function newGame() {
   state.lastScoreDelta = state.players.map(() => 0);
   state.lastChanged = null;
   state.history = [];
+  state.gameId = null;
+  state.remoteUpdatedAt = null;
+  detachRemoteGame();
+  clearGameUrl();
   undoStack = [];
   redoStack = [];
   document.body.classList.remove("game-started");
@@ -2824,6 +2850,10 @@ function loadGame(event) {
       undoStack = [];
       redoStack = [];
       document.body.classList.add("game-started");
+      if (state.gameId) {
+        setGameUrl(state.gameId);
+        subscribeRemoteGame(state.gameId);
+      }
       closeConventionModal();
   renderConventionOptions();
       el.convention.value = state.convention;
@@ -2870,6 +2900,151 @@ function importConventionFile(source) {
   showMessage("Конвенция загружена.");
 }
 
+function setupRemoteSync() {
+  const config = window.FIREBASE_CONFIG;
+  const hasConfig = config && config.apiKey && !String(config.apiKey).includes("YOUR_");
+  if (!hasConfig || !window.firebase?.initializeApp || !window.firebase?.firestore) return;
+  try {
+    if (!window.firebase.apps.length) window.firebase.initializeApp(config);
+    remoteDb = window.firebase.firestore();
+    remoteAvailable = true;
+  } catch (error) {
+    remoteAvailable = false;
+    remoteDb = null;
+    console.warn("Firebase initialization failed", error);
+  }
+}
+
+function normalizeGameId(value) {
+  const id = String(value || "").trim();
+  return /^[A-Za-z0-9_-]{16,64}$/.test(id) ? id : null;
+}
+
+function getUrlGameId() {
+  return normalizeGameId(new URLSearchParams(window.location.search).get("game"));
+}
+
+function generateGameToken() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function setGameUrl(gameId) {
+  if (!gameId || !window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("game", gameId);
+  window.history.replaceState({}, "", url);
+}
+
+function clearGameUrl() {
+  if (!window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("game");
+  window.history.replaceState({}, "", (url.pathname + url.search + url.hash) || ".");
+}
+
+function remoteGameRef(gameId = state.gameId) {
+  return remoteDb && gameId ? remoteDb.collection("games").doc(gameId) : null;
+}
+
+function detachRemoteGame() {
+  if (typeof remoteUnsubscribe === "function") remoteUnsubscribe();
+  remoteUnsubscribe = null;
+}
+
+function subscribeRemoteGame(gameId = state.gameId) {
+  if (!remoteAvailable || !remoteDb || !gameId) return;
+  detachRemoteGame();
+  remoteUnsubscribe = remoteGameRef(gameId).onSnapshot((snapshot) => {
+    if (!snapshot.exists) return;
+    const data = snapshot.data() || {};
+    const remoteState = data.state;
+    if (!remoteState) return;
+    const normalized = normalizeState(remoteState);
+    if (normalized.remoteUpdatedAt && normalized.remoteUpdatedAt === state.remoteUpdatedAt) return;
+    applyingRemoteState = true;
+    Object.assign(state, normalized, { gameId });
+    document.body.classList.add("game-started");
+    restoreState(state);
+    applyingRemoteState = false;
+  }, (error) => {
+    console.warn("Remote game subscription failed", error);
+    showMessage("Не удалось подключиться к общей игре.");
+  });
+}
+
+async function loadRemoteGame(gameId) {
+  if (!remoteAvailable || !remoteDb) {
+    showMessage("Firebase не настроен. Добавьте параметры проекта в firebase-config.js.");
+    return;
+  }
+  try {
+    const snapshot = await remoteGameRef(gameId).get();
+    if (!snapshot.exists) {
+      showMessage("Игра по ссылке не найдена.");
+      return;
+    }
+    const remoteState = normalizeState(snapshot.data()?.state || {});
+    Object.assign(state, remoteState, { gameId });
+    setGameUrl(gameId);
+    document.body.classList.add("game-started");
+    applyingRemoteState = true;
+    restoreState(state);
+    applyingRemoteState = false;
+    subscribeRemoteGame(gameId);
+  } catch (error) {
+    console.warn("Remote game load failed", error);
+    showMessage("Не удалось загрузить игру по ссылке.");
+  }
+}
+
+function queueRemoteSave() {
+  if (!remoteAvailable || !remoteDb || !state.gameId) return;
+  window.clearTimeout(remoteSaveTimer);
+  remoteSaveTimer = window.setTimeout(saveRemoteGame, 150);
+}
+
+async function saveRemoteGame() {
+  const ref = remoteGameRef();
+  if (!ref) return;
+  try {
+    await ref.set({
+      state: cloneState(),
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      clientUpdatedAt: state.remoteUpdatedAt || Date.now(),
+    }, { merge: true });
+    subscribeRemoteGame(state.gameId);
+  } catch (error) {
+    console.warn("Remote game save failed", error);
+    showMessage("Не удалось сохранить общую игру.");
+  }
+}
+
+function currentGameUrl() {
+  if (state.gameId) setGameUrl(state.gameId);
+  return window.location.href;
+}
+
+async function shareCurrentGame() {
+  if (!gameStarted()) return;
+  const url = currentGameUrl();
+  const title = "Пуля: " + state.convention;
+  if (navigator.share && window.matchMedia?.("(max-width: 720px)")?.matches) {
+    try {
+      await navigator.share({ title, text: title, url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+  await copyText(url);
+  showMessage("Ссылка скопирована в буфер");
+  window.setTimeout(() => {
+    if (el.message.textContent === "Ссылка скопирована в буфер") showMessage("");
+  }, 5000);
+}
+
 async function copyReport() {
   const totals = calculateTotals();
   const lines = [
@@ -2911,8 +3086,12 @@ function normalizePlainText(value) {
 
 async function copyText(value) {
   if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(value);
-    return;
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch (error) {
+      // Fall back for browser contexts that expose Clipboard API but deny write permission.
+    }
   }
   const textarea = document.createElement("textarea");
   textarea.value = value;
@@ -2963,6 +3142,8 @@ function normalizeState(source) {
     lastChanged: normalizeLastChanged(source.lastChanged || source.LastChanged, players),
     history: Array.isArray(source.history) ? source.history : source.History || [],
     customConventions: Array.isArray(source.customConventions) ? source.customConventions.map(normalizeConventionConfig) : [],
+    gameId: normalizeGameId(source.gameId || source.GameId),
+    remoteUpdatedAt: Number(source.remoteUpdatedAt || source.RemoteUpdatedAt || 0) || null,
   };
   if (!normalized.scoreLog) {
     const previous = { ...state };
