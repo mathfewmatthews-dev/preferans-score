@@ -3566,7 +3566,19 @@ function showShareQrPopover(url) {
   if (!el.shareQrPopover || !el.shareQrCode) return;
   el.shareQrCode.innerHTML = "";
   try {
-    el.shareQrCode.appendChild(createQrSvg(url));
+    if (window.QrCreator?.render) {
+      QrCreator.render({
+        text: url,
+        radius: 0,
+        ecLevel: "M",
+        fill: "#111827",
+        background: "#ffffff",
+        size: 280,
+      }, el.shareQrCode);
+      el.shareQrCode.querySelector("canvas, svg")?.classList.add("share-qr-svg");
+    } else {
+      el.shareQrCode.appendChild(createQrSvg(url));
+    }
   } catch (error) {
     const note = document.createElement("p");
     note.className = "share-qr-error";
@@ -4282,6 +4294,7 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
 
 
 

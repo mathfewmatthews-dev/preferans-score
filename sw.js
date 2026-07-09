@@ -1,9 +1,10 @@
-﻿const CACHE_NAME = "preference-pwa-v46";
+﻿const CACHE_NAME = "preference-pwa-v47";
 const APP_SHELL = [
   "./",
   "index.html",
   "styles.css",
   "app.js",
+  "qr-creator.js",
   "logo.svg",
   "Pwa.svg",
   "manifest.webmanifest",
@@ -45,6 +46,8 @@ self.addEventListener("fetch", (event) => {
     }))
   );
 });
+
+
 
 
 
