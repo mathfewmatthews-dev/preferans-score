@@ -5235,3 +5235,20 @@ body.game-started .pool-card > #closedBadge {
     margin-top: 46px !important;
   }
 }
+/* Final summary/history title typography alignment */
+.score-table-card h2,
+body.game-started .score-table-card h2 {
+  margin: 0 0 16px !important;
+  font-family: "Share Tech Rus", "Share Tech", "Segoe UI", Arial, sans-serif !important;
+  font-size: clamp(28px, 2.2vw, 40px) !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0 !important;
+  color: var(--text) !important;
+}
+
+@media (max-width: 720px) {
+  .score-table-card h2,
+  body.game-started .score-table-card h2 {
+    font-size: clamp(20px, 5vw, 28px) !important;
+  }
+}
