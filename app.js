@@ -1,4 +1,4 @@
-﻿const state = {
+const state = {
   convention: "Сочи",
   poolTarget: 20,
   initialPoolTarget: 20,
@@ -12,6 +12,7 @@
   backgroundColor: "#eef2f7",
   tableColor: "#ffffff",
   clothColor: "#ffffff",
+  lineColor: "#3f454a",
   appearanceMode: "light",
   scoreCountingMode: "live",
   scoresCalculated: true,
@@ -126,7 +127,7 @@ const COLOR_PALETTE = [
 ];
 const THEME_COLOR_INPUT_IDS = [
   "headerColor", "headerButtonColor", "headerButtonTextColor", "headerTextColor",
-  "themeColor", "buttonTextColor", "backgroundColor", "tableColor", "clothColor",
+  "themeColor", "buttonTextColor", "backgroundColor", "tableColor", "clothColor", "lineColor",
 ];
 
 
@@ -163,6 +164,7 @@ const el = {
   backgroundColor: document.getElementById("backgroundColor"),
   tableColor: document.getElementById("tableColor"),
   clothColor: document.getElementById("clothColor"),
+  lineColor: document.getElementById("lineColor"),
   tableImageDropzone: document.getElementById("tableImageDropzone"),
   tableImageInput: document.getElementById("tableImageInput"),
   tableImagePreview: document.getElementById("tableImagePreview"),
@@ -302,6 +304,8 @@ function bindEvents() {
   el.backgroundColor.addEventListener("input", updateThemeFromInputs);
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
+  el.lineColor.addEventListener("input", updateThemeFromInputs);
+  colorPaletteInputs().forEach((input) => input.addEventListener("change", updateThemeFromInputs));
   bindColorPaletteControls();
   el.resetColorSettingsButton?.addEventListener("click", resetColorSettings);
   bindTableImageControls();
@@ -704,6 +708,10 @@ function defaultSheetColor(mode = state.appearanceMode) {
   return mode === "dark" ? "#20252c" : "#ffffff";
 }
 
+function defaultLineColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#F5F5F5" : "#3f454a";
+}
+
 function defaultThemeColors(mode = state.appearanceMode) {
   return {
     themeColor: "#28733b",
@@ -715,6 +723,7 @@ function defaultThemeColors(mode = state.appearanceMode) {
     backgroundColor: mode === "dark" ? "#252a31" : "#eef2f7",
     tableColor: defaultTableColor(mode),
     clothColor: defaultSheetColor(mode),
+    lineColor: defaultLineColor(mode),
   };
 }
 
@@ -806,6 +815,7 @@ function renderTableImagePreview() {
   else el.tableImagePreviewImg.removeAttribute("src");
   syncColorResetButton();
   if (activePaletteInput) syncColorPalette(activePaletteInput);
+  applySheetLineColorToSvg();
 }
 
 async function restoreTableImageFromStorage() {
@@ -903,6 +913,7 @@ function setAppearanceMode(mode) {
   const wasDefaultHeaderButtonText = !state.headerButtonTextColor || state.headerButtonTextColor === defaultHeaderButtonTextColor(state.appearanceMode);
   const wasDefaultTable = !state.tableColor || state.tableColor === defaultTableColor(state.appearanceMode);
   const wasDefaultCloth = !state.clothColor || state.clothColor === defaultSheetColor(state.appearanceMode);
+  const wasDefaultLine = !state.lineColor || state.lineColor === defaultLineColor(state.appearanceMode);
   state.appearanceMode = nextMode;
   if (nextMode === "dark" && wasDefaultLightBg) state.backgroundColor = "#252a31";
   if (nextMode === "light" && wasDefaultDarkBg) state.backgroundColor = "#eef2f7";
@@ -910,6 +921,7 @@ function setAppearanceMode(mode) {
   if (wasDefaultHeaderButtonText) state.headerButtonTextColor = defaultHeaderButtonTextColor(nextMode);
   if (wasDefaultTable) state.tableColor = defaultTableColor(nextMode);
   if (wasDefaultCloth) state.clothColor = defaultSheetColor(nextMode);
+  if (wasDefaultLine) state.lineColor = defaultLineColor(nextMode);
   applyTheme();
   saveAutosavedGame();
 }
@@ -936,6 +948,7 @@ function updateThemeFromInputs() {
   state.backgroundColor = el.backgroundColor.value || (state.appearanceMode === "dark" ? "#252a31" : "#eef2f7");
   state.tableColor = el.tableColor.value || defaultTableColor();
   state.clothColor = el.clothColor.value || defaultSheetColor();
+  state.lineColor = el.lineColor.value || defaultLineColor();
   applyTheme();
   saveAutosavedGame();
 }
@@ -1130,6 +1143,24 @@ function logoPaletteForHeader(headerColor) {
     outline: luminance > 0.55 ? "rgba(17, 24, 39, .42)" : "rgba(255, 255, 255, .26)",
   };
 }
+function applySheetLineColorToSvg() {
+  if (!el.poolSheet) return;
+  const color = state.lineColor || defaultLineColor();
+  el.poolSheet.style.setProperty("--line", color);
+  el.poolSheet.style.setProperty("--soft-line", color);
+  el.poolSheet.querySelectorAll([
+    ".sheet-spoke",
+    ".sheet-soft",
+    ".whist-grid-line",
+    ".whist-grid-box",
+    ".sheet-border",
+    ".five-player-card",
+    ".five-guide",
+    ".five-inner",
+  ].join(",")).forEach((element) => {
+    element.setAttribute("stroke", color);
+  });
+}
 function applyTheme() {
   state.appearanceMode = state.appearanceMode === "dark" ? "dark" : "light";
   const dark = state.appearanceMode === "dark";
@@ -1158,11 +1189,12 @@ function applyTheme() {
   document.documentElement.style.setProperty("--neu-surface", state.backgroundColor || fallbackBg);
   document.documentElement.style.setProperty("--paper", fallbackPaper);
   document.documentElement.style.setProperty("--cloth-color", state.clothColor || defaultSheetColor());
+  const sheetLineColor = state.lineColor || defaultLineColor();
   document.documentElement.style.setProperty("--sheet-text-backdrop", defaultSheetColor());
   document.documentElement.style.setProperty("--ink", fallbackInk);
   document.documentElement.style.setProperty("--muted", fallbackMuted);
-  document.documentElement.style.setProperty("--line", dark ? "#d7dee7" : "#3f454a");
-  document.documentElement.style.setProperty("--soft-line", dark ? "#657181" : "#b9c0c9");
+  document.documentElement.style.setProperty("--line", sheetLineColor);
+  document.documentElement.style.setProperty("--soft-line", sheetLineColor);
   document.documentElement.style.setProperty("--neu-light", dark ? "#303742" : "#ffffff");
   document.documentElement.style.setProperty("--neu-dark", dark ? "#171b21" : "#a3b1c6");
   document.documentElement.style.setProperty("--neu-modal-bg", dark ? "#252a31" : "#eef2f7");
@@ -1175,10 +1207,12 @@ function applyTheme() {
   if (el.backgroundColor) el.backgroundColor.value = state.backgroundColor || fallbackBg;
   if (el.tableColor) el.tableColor.value = state.tableColor || defaultTableColor();
   if (el.clothColor) el.clothColor.value = state.clothColor || defaultSheetColor();
+  if (el.lineColor) el.lineColor.value = state.lineColor || defaultLineColor();
   syncAppearanceModeControls();
   syncButtonSurfaces();
   syncColorResetButton();
   if (activePaletteInput) syncColorPalette(activePaletteInput);
+  applySheetLineColorToSvg();
 }
 function syncControlsFromState() {
   if (el.convention) el.convention.value = state.convention;
@@ -1192,6 +1226,7 @@ function syncControlsFromState() {
   if (el.backgroundColor) el.backgroundColor.value = state.backgroundColor;
   if (el.tableColor) el.tableColor.value = state.tableColor;
   if (el.clothColor) el.clothColor.value = state.clothColor;
+  if (el.lineColor) el.lineColor.value = state.lineColor || defaultLineColor();
   if (activePaletteInput) syncColorPalette(activePaletteInput);
   if (el.scoreCountingMode) el.scoreCountingMode.value = state.scoreCountingMode;
   if (el.poolClosingMode) el.poolClosingMode.value = state.poolClosingMode;
@@ -1217,6 +1252,7 @@ function startGame() {
   state.backgroundColor = el.backgroundColor.value || (state.appearanceMode === "dark" ? "#252a31" : "#eef2f7");
   state.tableColor = el.tableColor.value || defaultTableColor();
   state.clothColor = el.clothColor.value || defaultSheetColor();
+  state.lineColor = el.lineColor.value || defaultLineColor();
   state.scoreCountingMode = el.scoreCountingMode.value === "manual" ? "manual" : "live";
   state.scoresCalculated = state.scoreCountingMode === "live";
   state.poolClosingMode = el.poolClosingMode.value === "total" ? "total" : "each";
@@ -2132,8 +2168,6 @@ function refresh() {
   renderConventionPanel();
   const actualTotals = calculateTotals();
   const totals = displayTotals(actualTotals);
-  el.gameCaption.textContent = "";
-  el.gameCaption.hidden = true;
   const closed = totals.filter((total) => total.closed).length;
   const actualClosed = actualTotals.filter((total) => total.closed).length;
   const fullyClosed = closed === state.players.length;
@@ -2150,7 +2184,9 @@ function refresh() {
     return span;
   }));
   const caption = `Пуля: ${state.convention} / ${state.players.length} игрока`;
-  el.statusTitle.textContent = fullyClosed ? `Пуля закрыта · ${caption}` : `Игра до ${format(state.poolTarget)} · ${caption}`;
+  el.statusTitle.textContent = fullyClosed ? "Пуля закрыта" : `Игра до ${format(state.poolTarget)}`;
+  el.gameCaption.textContent = caption;
+  el.gameCaption.hidden = false;
   renderPoolSheet(totals);
   renderScoreTable(totals);
   renderHistory();
@@ -2383,6 +2419,9 @@ function appendChangedValue(values, value) {
 function renderPoolSheet(totals) {
   ensureScoreLog();
   const svg = el.poolSheet;
+  const sheetLineColor = state.lineColor || defaultLineColor();
+  svg.style.setProperty("--line", sheetLineColor);
+  svg.style.setProperty("--soft-line", sheetLineColor);
   svg.innerHTML = "";
   const g = CLASSIC_LAYOUT;
   const center = { x: g.center, y: g.center };
@@ -2396,6 +2435,7 @@ function renderPoolSheet(totals) {
   if (totals.length === 5) {
     drawFivePlayerSheet(svg, totals, center);
     applySheetTextBackdrops(svg);
+    applySheetLineColorToSvg();
     return;
   }
 
@@ -2412,6 +2452,7 @@ function renderPoolSheet(totals) {
   svg.appendChild(textCentered(center.x, center.y + centerValueOffset, format(state.poolTarget), "sector-name center-value"));
   svg.appendChild(textCentered(center.x, center.y + centerLabelOffset, poolKindLabel, "sector-small center-label"));
   applySheetTextBackdrops(svg);
+  applySheetLineColorToSvg();
 }
 
 function drawFivePlayerSheet(svg, totals, center) {
@@ -3170,6 +3211,7 @@ function newGame() {
   state.backgroundColor = "#eef2f7";
   state.tableColor = "#ffffff";
   state.clothColor = "#ffffff";
+  state.lineColor = "#3f454a";
   state.appearanceMode = "light";
   state.scoreCountingMode = "live";
   state.scoresCalculated = true;
@@ -3207,6 +3249,7 @@ function newGame() {
   el.backgroundColor.value = state.backgroundColor;
   el.tableColor.value = state.tableColor;
   el.clothColor.value = state.clothColor;
+  el.lineColor.value = state.lineColor;
   el.scoreCountingMode.value = state.scoreCountingMode;
   el.poolClosingMode.value = state.poolClosingMode;
   el.playerCount.value = "3";
@@ -3459,6 +3502,7 @@ function localUiState() {
     backgroundColor: state.backgroundColor,
     tableColor: state.tableColor,
     clothColor: state.clothColor,
+    lineColor: state.lineColor,
     appearanceMode: state.appearanceMode,
   };
 }
@@ -3875,6 +3919,7 @@ function normalizeState(source) {
     backgroundColor: source.backgroundColor || source.BackgroundColor || "#eef2f7",
     tableColor: source.tableColor || source.TableColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#2b313a" : "#ffffff"),
     clothColor: source.clothColor || source.ClothColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#20252c" : "#ffffff"),
+    lineColor: source.lineColor || source.LineColor || defaultLineColor(source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "dark" : "light"),
     appearanceMode: source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "dark" : "light",
     scoreCountingMode,
     poolClosingMode: source.poolClosingMode === "total" || source.PoolClosingMode === "total" ? "total" : "each",
@@ -3925,6 +3970,7 @@ function restoreState(snapshot) {
   el.backgroundColor.value = state.backgroundColor;
   el.tableColor.value = state.tableColor;
   el.clothColor.value = state.clothColor;
+  el.lineColor.value = state.lineColor;
   el.scoreCountingMode.value = state.scoreCountingMode;
   el.poolClosingMode.value = state.poolClosingMode;
   el.playerCount.value = state.players.length;
@@ -4294,27 +4340,3 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

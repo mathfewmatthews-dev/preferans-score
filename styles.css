@@ -1,4 +1,4 @@
-﻿@font-face {
+@font-face {
   font-family: "Share Tech Rus";
   src: url("fonts/share-tech-rus.ttf") format("truetype");
   font-display: block;
@@ -2525,8 +2525,8 @@ body:not(.game-started) .pool-sheet-wrap {
   --paper: #20252c;
   --ink: #edf3f8;
   --muted: #aeb8c5;
-  --line: #d7dee7;
-  --soft-line: #657181;
+  --line: #F5F5F5;
+  --soft-line: #F5F5F5;
   --green: #65d17c;
   --red: #ff6b6b;
   --stripe-surface: #2b313a;
@@ -4084,8 +4084,8 @@ body:not(.game-started) .floating-record-button {
 }
 
 :root[data-theme="dark"] {
-  --line: #f3eadc;
-  --soft-line: #f3eadc;
+  --line: #F5F5F5;
+  --soft-line: #F5F5F5;
 }
 
 .sheet-spoke,
@@ -4117,7 +4117,7 @@ html[data-theme="light"] .sheet-soft,
 html[data-theme="light"] .whist-grid-line,
 html[data-theme="light"] .whist-grid-box,
 html[data-theme="light"] .sheet-border {
-  stroke: #3f454a !important;
+  stroke: var(--line) !important;
 }
 
 html[data-theme="dark"] .sheet-spoke,
@@ -4125,7 +4125,7 @@ html[data-theme="dark"] .sheet-soft,
 html[data-theme="dark"] .whist-grid-line,
 html[data-theme="dark"] .whist-grid-box,
 html[data-theme="dark"] .sheet-border {
-  stroke: #f3eadc !important;
+  stroke: var(--line) !important;
 }
 /* Inline player score delta: keep score blocks low and mathematically centered. */
 .score-line {
@@ -4379,7 +4379,7 @@ body:not(.game-started) #setupPanel #startButton {
 
   #recordModal .type-choice {
     min-height: 86px !important;
-    font-size: clamp(26px, 8vw, 34px) !important;
+    font-size: clamp(20px, 5vw, 28px) !important;
   }
 
   .confirm-actions,
@@ -5054,5 +5054,184 @@ body.game-started #closedBadge {
   body.game-started #closedBadge {
     max-width: calc(100% - 12px) !important;
     padding: 6px 12px !important;
+  }
+}
+
+/* Final journal placement for game meta after removing it from the table area */
+.pool-card > .pool-meta {
+  display: none !important;
+}
+
+.history-card .history-game-meta,
+.history-card .pool-meta {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  justify-items: start !important;
+  align-items: start !important;
+  gap: 10px !important;
+  margin: 4px 0 18px !important;
+  padding: 14px 16px !important;
+  border: 1px solid var(--stripe-border) !important;
+  border-radius: 14px !important;
+  background: var(--stripe-muted-surface) !important;
+  box-shadow: none !important;
+}
+
+.history-card .history-game-meta > div,
+.history-card .pool-meta > div {
+  grid-row: auto !important;
+  justify-self: stretch !important;
+  text-align: left !important;
+  max-width: 100% !important;
+}
+
+.history-card .history-game-meta h2,
+.history-card .pool-meta h2 {
+  margin: 2px 0 0 !important;
+  font-size: clamp(24px, 2.2vw, 34px) !important;
+  line-height: 1.08 !important;
+}
+
+.history-card .history-game-meta p,
+.history-card .pool-meta p {
+  margin: 0 !important;
+  font-family: "Share Tech Rus", "Share Tech", "Segoe UI", Arial, sans-serif !important;
+  font-size: clamp(16px, 1.2vw, 20px) !important;
+  line-height: 1.25 !important;
+  color: var(--muted-text) !important;
+}
+
+.history-card #closedBadge {
+  grid-row: auto !important;
+  justify-self: start !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  text-align: left !important;
+}
+
+@media (min-width: 1181px) {
+  body.game-started .pool-sheet-wrap,
+  body:not(.game-started) .pool-sheet-wrap {
+    width: min(100%, calc(var(--play-area-height) - 32px), 1080px) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .history-card .history-game-meta,
+  .history-card .pool-meta {
+    padding: 12px !important;
+    margin-bottom: 14px !important;
+  }
+}
+/* Final requested placement: progress badge stays centered on the table, title lives in Journal. */
+.pool-card {
+  position: relative !important;
+}
+
+.pool-card > .pool-progress-badge,
+.pool-card > #closedBadge,
+body.game-started .pool-card > #closedBadge {
+  position: absolute !important;
+  top: clamp(14px, 2vh, 28px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 4 !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  justify-self: center !important;
+  max-width: min(620px, calc(100% - 32px)) !important;
+  text-align: center !important;
+  white-space: normal !important;
+}
+
+.history-card #closedBadge {
+  display: none !important;
+}
+
+.pool-sheet .sheet-spoke,
+.pool-sheet .sheet-soft,
+.pool-sheet .whist-grid-line,
+.pool-sheet .whist-grid-box,
+.pool-sheet .sheet-border,
+.pool-sheet .five-player-card,
+.pool-sheet .five-guide,
+.pool-sheet .five-inner {
+  stroke: var(--line) !important;
+}
+
+@media (max-width: 720px) {
+  .pool-card > .pool-progress-badge,
+  .pool-card > #closedBadge,
+  body.game-started .pool-card > #closedBadge {
+    top: 12px !important;
+    max-width: calc(100% - 20px) !important;
+    padding: 6px 12px !important;
+  }
+}
+
+/* Final history title: one inline line, no separate game-meta card. */
+.history-card .history-game-meta {
+  display: none !important;
+}
+
+.history-title {
+  display: flex !important;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: .45ch;
+  margin: 0 0 16px !important;
+  font-family: "Share Tech Rus", "Share Tech", "Segoe UI", Arial, sans-serif !important;
+  font-size: clamp(28px, 2.2vw, 40px) !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0;
+  color: var(--text) !important;
+  white-space: nowrap;
+}
+
+.history-title > span {
+  display: inline;
+}
+
+.history-title > span:not(:last-child)::after {
+  content: "·";
+  margin-left: .45ch;
+  color: var(--muted-text);
+}
+
+.history-convention-description {
+  margin: -6px 0 14px !important;
+}
+
+.history-convention-description:empty {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .history-title {
+    font-size: clamp(20px, 5vw, 28px) !important;
+  }
+}
+
+/* Final table progress and line-color application fix */
+body.game-started .pool-card {
+  --pool-progress-space: clamp(56px, 5.8vh, 82px);
+}
+
+body.game-started .pool-card > .pool-progress-badge,
+body.game-started .pool-card > #closedBadge {
+  top: clamp(12px, 1.8vh, 22px) !important;
+}
+
+@media (min-width: 721px) {
+  body.game-started .pool-card > .pool-sheet-wrap {
+    flex: 0 0 auto !important;
+    width: min(100%, calc(var(--play-area-height) - var(--pool-progress-space) - 56px), 1080px) !important;
+    margin: var(--pool-progress-space) auto auto !important;
+  }
+}
+
+@media (max-width: 720px) {
+  body.game-started .pool-card > .pool-sheet-wrap {
+    margin-top: 46px !important;
   }
 }
