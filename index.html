@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/pwa-192.png">
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=39">
 </head>
 <body>
   <header class="app-header">
@@ -237,23 +237,7 @@
 
         </div>
       </div>
-        <div id="mobileColorPalette" class="mobile-color-palette" hidden>
-          <div class="mobile-color-palette-panel" role="dialog" aria-modal="true" aria-labelledby="paletteTargetLabel">
-            <div class="palette-head">
-              <div>
-                <span>Палитра</span>
-                <strong id="paletteTargetLabel">Выберите настройку цвета</strong>
-              </div>
-              <button id="closePaletteButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
-            </div>
-            <label class="palette-hex-field">
-              <span>HEX</span>
-              <input id="paletteHexInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="7" placeholder="#28733b">
-            </label>
-            <div id="paletteSwatches" class="palette-swatches" aria-label="Готовые цвета"></div>
-            <p id="paletteError" class="palette-error" role="status"></p>
-          </div>
-        </div>
+
         <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
       </div>
       <div id="installAppFooter" class="settings-drawer-footer" hidden>
@@ -262,6 +246,23 @@
     </div>
   </div>
 
+  <div id="mobileColorPalette" class="mobile-color-palette" hidden>
+    <div class="mobile-color-palette-panel" role="dialog" aria-modal="true" aria-labelledby="paletteTargetLabel">
+      <div class="palette-head">
+        <div>
+          <span>Палитра</span>
+          <strong id="paletteTargetLabel">Выберите настройку цвета</strong>
+        </div>
+        <button id="closePaletteButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <label class="palette-hex-field">
+        <span>HEX</span>
+        <input id="paletteHexInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="7" placeholder="#28733b">
+      </label>
+      <div id="paletteSwatches" class="palette-swatches" aria-label="Готовые цвета"></div>
+      <p id="paletteError" class="palette-error" role="status"></p>
+    </div>
+  </div>
   <div id="conventionModal" class="modal convention-modal" aria-hidden="true">
     <section id="conventionPanel" class="convention-settings-panel" role="dialog" aria-modal="true" aria-labelledby="conventionSettingsTitle">
       <div class="modal-head">
@@ -654,9 +655,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>
+
+
+
 
 
 

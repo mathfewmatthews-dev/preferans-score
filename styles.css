@@ -4840,6 +4840,14 @@ body:not(.game-started) #floatingShareButton,
   }
 }
 
+
+@media (min-width: 721px) {
+  .mobile-color-palette {
+    display: none !important;
+    pointer-events: none !important;
+  }
+}
+
 /* Touch-friendly color palette for mobile browsers */
 .mobile-color-palette {
   display: none;
@@ -4847,6 +4855,7 @@ body:not(.game-started) #floatingShareButton,
 
 .mobile-color-palette[hidden] {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .mobile-color-palette-panel {
@@ -4985,6 +4994,7 @@ body:not(.game-started) #floatingShareButton,
   border: 1px solid var(--stripe-border);
   border-radius: 10px;
 }
+
 
 
 

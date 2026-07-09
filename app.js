@@ -998,7 +998,7 @@ function bindColorPaletteControls() {
 }
 
 function colorPaletteInputs() {
-  return COLOR_FIELD_IDS.map((id) => el[id]).filter(Boolean);
+  return THEME_COLOR_INPUT_IDS.map((id) => el[id]).filter(Boolean);
 }
 
 function isMobileColorPaletteTarget(input) {
@@ -1019,7 +1019,6 @@ function openColorPalette(input) {
   activePaletteInput = input;
   el.colorPalette.hidden = false;
   syncColorPalette(input);
-  window.setTimeout(() => el.paletteHexInput?.focus({ preventScroll: true }), 0);
 }
 function syncColorPalette(input = activePaletteInput) {
   if (!input || !el.colorPalette) return;
@@ -4273,6 +4272,9 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
+
 
 
 
