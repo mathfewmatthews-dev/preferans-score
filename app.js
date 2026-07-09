@@ -3539,7 +3539,15 @@ function remoteSaveErrorMessage(error) {
 
 function currentGameUrl() {
   if (state.gameId) setGameUrl(state.gameId);
-  return window.location.href;
+  if (!state.gameId) return window.location.href;
+  const base = window.location.protocol === "file:"
+    ? "https://mathfewmatthews-dev.github.io/preferans-score/"
+    : `${window.location.origin}${window.location.pathname}`;
+  const url = new URL(base, window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("game", state.gameId);
+  return url.href;
 }
 
 function closeShareQrOnOutsideClick(event) {
@@ -3561,7 +3569,7 @@ function showShareQrPopover(url) {
   } catch (error) {
     const note = document.createElement("p");
     note.className = "share-qr-error";
-    note.textContent = "QR не удалось построить: ссылка слишком длинная.";
+    note.textContent = error?.message === "QR input is too long" ? "QR не удалось построить: ссылка слишком длинная." : "QR не удалось построить.";
     el.shareQrCode.appendChild(note);
   }
   el.shareQrPopover.hidden = false;
@@ -3581,7 +3589,7 @@ function createQrSvg(value) {
       path += `M${px} ${py}h${moduleSize}v${moduleSize}h-${moduleSize}z`;
     });
   });
-  const svg = document.createElementNS(SVG_NS, "svg");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${pixelSize} ${pixelSize}`);
   svg.setAttribute("width", "180");
   svg.setAttribute("height", "180");
@@ -4272,6 +4280,8 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
 
 
 
