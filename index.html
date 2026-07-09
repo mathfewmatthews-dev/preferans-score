@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/pwa-192.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=29">
 </head>
 <body>
   <header class="app-header">
@@ -149,7 +149,7 @@
       </section>
     </section>
     <p id="message" class="message global-message" role="status"></p>
-    <button id="floatingShareButton" class="primary-button floating-share-button" type="button" hidden aria-label="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;" title="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;"><span class="floating-share-icon" aria-hidden="true"></span></button>
+    <button id="floatingShareButton" class="primary-button floating-share-button" type="button" hidden aria-label="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;" title="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;"><img class="floating-share-icon" src="share-google-svgrepo-com.svg" alt="" aria-hidden="true"></button>
 
     <button id="floatingRecordButton" class="primary-button floating-record-button" type="button" aria-label="&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1079;&#1072;&#1087;&#1080;&#1089;&#1100;">+</button>
   </main>
@@ -233,6 +233,24 @@
 
         </div>
       </div>
+        <div id="mobileColorPalette" class="mobile-color-palette" hidden>
+          <div class="palette-head">
+            <div>
+              <span>Палитра</span>
+              <strong id="paletteTargetLabel">Выберите настройку цвета</strong>
+              <label class="palette-target-field">
+                <span>Настройка</span>
+                <select id="paletteTargetSelect" aria-label="Какой цвет изменить"></select>
+              </label>
+            </div>
+            <label class="palette-hex-field">
+              <span>HEX</span>
+              <input id="paletteHexInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="7" placeholder="#28733b">
+            </label>
+          </div>
+          <div id="paletteSwatches" class="palette-swatches" aria-label="Готовые цвета"></div>
+          <p id="paletteError" class="palette-error" role="status"></p>
+        </div>
         <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
       </div>
       <div id="installAppFooter" class="settings-drawer-footer" hidden>
@@ -633,9 +651,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
+
+
+
+
 
 
 

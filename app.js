@@ -116,6 +116,18 @@ const TABLE_IMAGE_STORE = "assets";
 const TABLE_IMAGE_KEY = "tableBackground";
 const TABLE_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 const TABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg"]);
+const COLOR_PALETTE = [
+  "#111827", "#374151", "#6b7280", "#d1d5db", "#ffffff",
+  "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
+  "#22c55e", "#16a34a", "#14b8a6", "#06b6d4", "#0ea5e9",
+  "#3b82f6", "#2563eb", "#6366f1", "#8b5cf6", "#a855f7",
+  "#d946ef", "#ec4899", "#f43f5e", "#7f1d1d", "#92400e",
+  "#365314", "#064e3b", "#164e63", "#1e3a8a", "#581c87", "#831843",
+];
+const THEME_COLOR_INPUT_IDS = [
+  "headerColor", "headerButtonColor", "headerButtonTextColor", "headerTextColor",
+  "themeColor", "buttonTextColor", "backgroundColor", "tableColor", "clothColor",
+];
 
 
 let undoStack = [];
@@ -132,6 +144,7 @@ let applyingRemoteState = false;
 let remoteAvailable = false;
 let tableImageObjectUrl = "";
 let tableImageLoaded = false;
+let activePaletteInput = null;
 
 
 const el = {
@@ -156,6 +169,12 @@ const el = {
   tableImagePreviewImg: document.getElementById("tableImagePreviewImg"),
   removeTableImageButton: document.getElementById("removeTableImageButton"),
   tableImageError: document.getElementById("tableImageError"),
+  colorPalette: document.getElementById("mobileColorPalette"),
+  paletteTargetLabel: document.getElementById("paletteTargetLabel"),
+  paletteTargetSelect: document.getElementById("paletteTargetSelect"),
+  paletteHexInput: document.getElementById("paletteHexInput"),
+  paletteSwatches: document.getElementById("paletteSwatches"),
+  paletteError: document.getElementById("paletteError"),
   lightModeButton: document.getElementById("lightModeButton"),
   darkModeButton: document.getElementById("darkModeButton"),
   scoreCountingMode: document.getElementById("scoreCountingMode"),
@@ -280,6 +299,7 @@ function bindEvents() {
   el.backgroundColor.addEventListener("input", updateThemeFromInputs);
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
+  bindColorPaletteControls();
   el.resetColorSettingsButton?.addEventListener("click", resetColorSettings);
   bindTableImageControls();
   el.installAppButton?.addEventListener("click", installApp);
@@ -778,6 +798,7 @@ function renderTableImagePreview() {
   if (tableImageLoaded) el.tableImagePreviewImg.src = tableImageObjectUrl;
   else el.tableImagePreviewImg.removeAttribute("src");
   syncColorResetButton();
+  if (activePaletteInput) syncColorPalette(activePaletteInput);
 }
 
 async function restoreTableImageFromStorage() {
@@ -912,6 +933,98 @@ function updateThemeFromInputs() {
   saveAutosavedGame();
 }
 
+function bindColorPaletteControls() {
+  const inputs = THEME_COLOR_INPUT_IDS.map((id) => el[id]).filter(Boolean);
+  if (!el.colorPalette || !el.paletteSwatches || inputs.length === 0) return;
+  if (el.paletteTargetSelect && !el.paletteTargetSelect.dataset.ready) {
+    inputs.forEach((input) => {
+      const option = document.createElement("option");
+      option.value = input.id;
+      option.textContent = input.closest(".color-field")?.querySelector("span")?.textContent?.trim() || input.id;
+      el.paletteTargetSelect.appendChild(option);
+    });
+    el.paletteTargetSelect.addEventListener("change", () => {
+      const nextInput = document.getElementById(el.paletteTargetSelect.value);
+      if (nextInput) openColorPalette(nextInput);
+    });
+    el.paletteTargetSelect.dataset.ready = "true";
+  }
+  if (!el.paletteSwatches.dataset.ready) {
+    COLOR_PALETTE.forEach((color) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "palette-swatch";
+      button.style.setProperty("--swatch", color);
+      button.dataset.color = color;
+      button.setAttribute("aria-label", color);
+      button.addEventListener("click", () => applyPaletteColor(color));
+      el.paletteSwatches.appendChild(button);
+    });
+    el.paletteSwatches.dataset.ready = "true";
+  }
+  inputs.forEach((input) => {
+    input.addEventListener("focus", () => openColorPalette(input));
+    input.addEventListener("click", () => openColorPalette(input));
+    input.addEventListener("input", () => syncColorPalette(input));
+  });
+  el.paletteHexInput?.addEventListener("focus", () => {
+    if (!activePaletteInput && inputs[0]) openColorPalette(inputs[0]);
+  });
+  el.paletteHexInput?.addEventListener("input", () => {
+    const normalized = normalizeHexInput(el.paletteHexInput.value);
+    if (!normalized) {
+      setPaletteError(el.paletteHexInput.value.trim() ? "Введите цвет в формате #RRGGBB." : "");
+      return;
+    }
+    applyPaletteColor(normalized, { keepFocus: true });
+  });
+  if (!activePaletteInput) openColorPalette(inputs[0]);
+}
+
+function openColorPalette(input) {
+  if (!input || !el.colorPalette) return;
+  activePaletteInput = input;
+  el.colorPalette.hidden = false;
+  syncColorPalette(input);
+}
+
+function syncColorPalette(input = activePaletteInput) {
+  if (!input || !el.colorPalette) return;
+  activePaletteInput = input;
+  const value = normalizeHexInput(input.value) || "#000000";
+  const label = input.closest(".color-field")?.querySelector("span")?.textContent?.trim() || "Цвет";
+  if (el.paletteTargetLabel) el.paletteTargetLabel.textContent = label;
+  if (el.paletteTargetSelect && el.paletteTargetSelect.value !== input.id) el.paletteTargetSelect.value = input.id;
+  if (el.paletteHexInput && document.activeElement !== el.paletteHexInput) el.paletteHexInput.value = value;
+  el.paletteSwatches?.querySelectorAll(".palette-swatch").forEach((swatch) => {
+    const selected = swatch.dataset.color?.toLowerCase() === value.toLowerCase();
+    swatch.classList.toggle("selected", selected);
+    swatch.setAttribute("aria-pressed", String(selected));
+  });
+  setPaletteError("");
+}
+
+function applyPaletteColor(color, options = {}) {
+  const normalized = normalizeHexInput(color);
+  if (!normalized || !activePaletteInput) return;
+  activePaletteInput.value = normalized;
+  activePaletteInput.dispatchEvent(new Event("input", { bubbles: true }));
+  activePaletteInput.dispatchEvent(new Event("change", { bubbles: true }));
+  if (el.paletteHexInput && !options.keepFocus) el.paletteHexInput.value = normalized;
+  syncColorPalette(activePaletteInput);
+}
+
+function normalizeHexInput(value) {
+  const raw = String(value || "").trim();
+  const shortMatch = raw.match(/^#?([\da-f]{3})$/i);
+  if (shortMatch) return `#${shortMatch[1].split("").map((char) => char + char).join("")}`.toLowerCase();
+  const longMatch = raw.match(/^#?([\da-f]{6})$/i);
+  return longMatch ? `#${longMatch[1]}`.toLowerCase() : "";
+}
+
+function setPaletteError(message) {
+  if (el.paletteError) el.paletteError.textContent = message;
+}
 function syncButtonSurfaces() {
   const headerButtonBg = el.headerButtonColor?.value || state.headerButtonColor || defaultHeaderButtonColor();
   const headerButtonText = el.headerButtonTextColor?.value || state.headerButtonTextColor || defaultHeaderButtonTextColor();
@@ -1033,6 +1146,7 @@ function applyTheme() {
   syncAppearanceModeControls();
   syncButtonSurfaces();
   syncColorResetButton();
+  if (activePaletteInput) syncColorPalette(activePaletteInput);
 }
 function syncControlsFromState() {
   if (el.convention) el.convention.value = state.convention;
@@ -1046,6 +1160,7 @@ function syncControlsFromState() {
   if (el.backgroundColor) el.backgroundColor.value = state.backgroundColor;
   if (el.tableColor) el.tableColor.value = state.tableColor;
   if (el.clothColor) el.clothColor.value = state.clothColor;
+  if (activePaletteInput) syncColorPalette(activePaletteInput);
   if (el.scoreCountingMode) el.scoreCountingMode.value = state.scoreCountingMode;
   if (el.poolClosingMode) el.poolClosingMode.value = state.poolClosingMode;
   if (el.playerCount) el.playerCount.value = String(state.players.length);
@@ -2307,11 +2422,11 @@ function drawFivePlayerSheet(svg, totals, center) {
   svg.appendChild(textCentered(center.x, center.y + centerLabelOffset, poolKindLabel, "sector-small center-label"));
 
   const configs = [
-    { x: 500, y: 150, seat: "С", width: 380, height: 220, colWidth: 82, rowHeight: 56 },
-    { x: 835, y: 500, seat: "В", rotate: -90, width: 360, height: 220, colWidth: 82, rowHeight: 56 },
-    { x: 665, y: 825, seat: "Ю", width: 300, height: 220, colWidth: 68, rowHeight: 56 },
-    { x: 335, y: 825, seat: "Ю-З", width: 300, height: 220, colWidth: 68, rowHeight: 56 },
-    { x: 165, y: 500, seat: "С-З", rotate: 90, width: 360, height: 220, colWidth: 82, rowHeight: 56 },
+    { x: 500, y: 150, seat: "С", width: 400, height: 236, colWidth: 88, rowHeight: 68 },
+    { x: 835, y: 500, seat: "В", rotate: -90, width: 380, height: 236, colWidth: 88, rowHeight: 68 },
+    { x: 665, y: 825, seat: "Ю", width: 320, height: 236, colWidth: 72, rowHeight: 68 },
+    { x: 335, y: 825, seat: "Ю-З", width: 320, height: 236, colWidth: 72, rowHeight: 68 },
+    { x: 165, y: 500, seat: "С-З", rotate: 90, width: 380, height: 236, colWidth: 88, rowHeight: 68 },
   ];
   totals.forEach((total, index) => drawFivePlayerSlot(svg, total, configs[index]));
 }
@@ -2325,8 +2440,8 @@ function drawFivePlayerSlot(svg, total, cfg) {
   group.appendChild(node("rect", { x: cfg.x - cardWidth / 2, y: cfg.y - cardHeight / 2, width: cardWidth, height: cardHeight, rx: 6, class: "five-player-card" }));
   group.appendChild(text(cfg.x, cfg.y - 66, `${cfg.seat} · ${total.name}`, "sector-name five-name", "middle"));
   drawScoreText(group, cfg.x, cfg.y - 10, total, cfg.y - 40);
-  group.appendChild(sequenceText(cfg.x - 48, cfg.y + 18, "△", scoreHistory("mountain", total.index), "pool-track five-pool-track", "middle"));
-  group.appendChild(sequenceText(cfg.x + 48, cfg.y + 18, "▶", scoreHistory("pool", total.index), "pool-track five-pool-track", "middle"));
+  group.appendChild(sequenceText(cfg.x - 48, cfg.y - 20, "△", scoreHistory("mountain", total.index), "pool-track five-pool-track", "middle"));
+  group.appendChild(sequenceText(cfg.x + 48, cfg.y - 20, "▶", scoreHistory("pool", total.index), "pool-track five-pool-track", "middle"));
   drawFiveWhistGrid(group, cfg.x, cfg.y + 78, total.index, cfg.colWidth || 62, cfg.rowHeight || 56);
 }
 
@@ -2341,10 +2456,9 @@ function drawFiveWhistGrid(group, cx, cy, playerIndex, colWidth, rowHeight = 56)
   });
   opponents.forEach((opponent, col) => {
     const x = startX + col * colWidth + colWidth / 2;
-    group.appendChild(text(x, startY - 5, fiveSeatLabel(opponent.index), "five-whist-label", "middle"));
-    const textNode = wrappedSequenceText(x, cy + 7, "", hasWrittenWhists ? opponent.values : [0], "whist-track five-whist-value", 7, "middle");
-    group.appendChild(textNode);
-    centerSvgTextOnPoint(textNode, x, cy);
+    group.appendChild(text(x, startY - 10, fiveSeatLabel(opponent.index), "five-whist-label", "middle"));
+    const textNode = whistCellText(x, cy, hasWrittenWhists ? opponent.values : [0], "whist-track five-whist-value");
+    if (textNode) group.appendChild(textNode);
   });
 }
 
@@ -2466,6 +2580,7 @@ function drawClassicSlot(svg, slot) {
     return;
   }
   const cfg = slotConfig(slot.side);
+  cfg.side = slot.side;
   const total = slot.total;
   Object.assign(cfg, classicSlotGeometry(slot.side, classicScoreMetrics(total)));
 
@@ -2657,7 +2772,7 @@ function drawEmptySlot(svg, side) {
   const cfg = slotConfig(side);
   const group = node("g", {});
   if (cfg.emptyRotate) group.setAttribute("transform", `rotate(${cfg.emptyRotate} ${cfg.emptyX} ${cfg.emptyY})`);
-  group.appendChild(text(cfg.emptyX, cfg.emptyY, "X", "sector-name", "middle"));
+  group.appendChild(whistVectorCell(cfg.emptyX, cfg.emptyY, "X", 46, 44, "whist-track missing-whist", null));
   svg.appendChild(group);
 }
 
@@ -2765,7 +2880,11 @@ function drawWhistGrid(group, cfg, opponents, hasWrittenWhists) {
   });
   const columns = whistColumns(totalIndexFromOpponents(opponents), opponents);
   columns.forEach((column, col) => {
-    const className = column.missing ? "whist-track missing-whist" : "whist-track";
+    const sideClass = cfg.side ? `whist-side-${cfg.side}` : "";
+    const className = [
+      column.missing ? "whist-track missing-whist" : "whist-track",
+      sideClass,
+    ].filter(Boolean).join(" ");
     const values = !gameStarted() ? (column.missing ? ["X"] : []) : column.missing ? ["X"] : hasWrittenWhists ? column.opponent.values : [0];
     const cellX = startX + col * colWidth + colWidth / 2;
     const cellY = startY + rowHeight / 2;
@@ -2777,22 +2896,104 @@ function drawWhistGrid(group, cfg, opponents, hasWrittenWhists) {
 function whistCellText(x, y, values, className) {
   if (!values.length) return null;
   const formatted = values.map(formatTrackValue);
-  const isSingleCellValue = formatted.length === 1 && formatted[0].length <= 2;
-  if (!isSingleCellValue) return wrappedSequenceText(x, y, "", values, className, 7, "middle");
+  const isFivePlayerValue = className.includes("five-whist-value");
+  const displayValue = formatted[0].toUpperCase();
+  const height = isFivePlayerValue ? 46 : 44;
+  if (formatted.length === 1 && displayValue === "X") {
+    return whistVectorCell(x, y, displayValue, isFivePlayerValue ? 48 : 46, height, className, values[0]);
+  }
+  const textWidth = formatted.reduce((sum, value, index) => sum + value.length + (index < formatted.length - 1 ? 2 : 0), 0);
+  const width = Math.max(isFivePlayerValue ? 48 : 46, textWidth * (isFivePlayerValue ? 14 : 17) + 14);
+  return whistVectorSequenceCell(x, y, formatted, values, width, height, className);
+}
 
-  const item = node("text", {
+function whistHtmlCell(x, y, value, width, height, className, rawValue) {
+  const group = node("g", { class: "whist-cell-combo" });
+  const object = node("foreignObject", {
+    x: x - width / 2,
+    y: y - height / 2,
+    width,
+    height,
+    class: "whist-cell-object",
+  });
+  const box = document.createElement("div");
+  box.className = ["whist-cell-html", className].filter(Boolean).join(" ");
+  const span = document.createElement("span");
+  if (isChangedValue(rawValue)) span.className = "last-change";
+  span.textContent = value;
+  box.appendChild(span);
+  object.appendChild(box);
+  group.appendChild(object);
+  return group;
+}
+
+function whistVectorSequenceCell(x, y, formatted, values, width, height, className) {
+  const isFivePlayerValue = className.includes("five-whist-value");
+  const group = node("g", { class: "whist-vector-cell" });
+  group.appendChild(node("rect", {
+    x: x - width / 2,
+    y: y - height / 2,
+    width,
+    height,
+    rx: 7,
+    ry: 7,
+    class: "whist-cell-backdrop",
+  }));
+  const textNode = node("text", {
     x,
     y,
-    class: className,
+    class: ["whist-vector-text", isFivePlayerValue ? "five-whist-value" : ""].filter(Boolean).join(" "),
     "text-anchor": "middle",
-    "dominant-baseline": "central",
-    "alignment-baseline": "central",
+    "dominant-baseline": "middle",
+    "alignment-baseline": "middle",
+    dy: isFivePlayerValue ? "0.08em" : "0.10em",
   });
-  const value = values[0];
-  const span = node("tspan", isChangedValue(value) ? { class: "last-change" } : {});
-  span.textContent = formatted[0];
-  item.appendChild(span);
-  return item;
+  formatted.forEach((value, index) => {
+    const classes = [
+      index < formatted.length - 1 ? "crossed" : "",
+      isChangedValue(values[index]) ? "last-change" : "",
+    ].filter(Boolean).join(" ");
+    const span = node("tspan", classes ? { class: classes } : {});
+    span.textContent = `${value}${index < formatted.length - 1 ? ". " : ""}`;
+    textNode.appendChild(span);
+  });
+  group.appendChild(textNode);
+  return group;
+}
+function whistVectorCell(x, y, value, width, height, className, rawValue) {
+  const isMissing = className.includes("missing-whist");
+  const isLastChange = isChangedValue(rawValue);
+  const isFivePlayerValue = className.includes("five-whist-value");
+  const group = node("g", { class: "whist-vector-cell" });
+  group.appendChild(node("rect", {
+    x: x - width / 2,
+    y: y - height / 2,
+    width,
+    height,
+    rx: 7,
+    ry: 7,
+    class: "whist-cell-backdrop",
+  }));
+  const glyphClass = ["whist-vector-glyph", isMissing ? "missing-whist" : "", isLastChange ? "last-change" : ""].filter(Boolean).join(" ");
+  if (value === "X") {
+    const half = isFivePlayerValue ? 10 : 11;
+    group.appendChild(node("line", { x1: x - half, y1: y - half, x2: x + half, y2: y + half, class: glyphClass }));
+    group.appendChild(node("line", { x1: x + half, y1: y - half, x2: x - half, y2: y + half, class: glyphClass }));
+    return group;
+  }
+
+  const textNode = node("text", {
+    x,
+    y,
+    class: ["whist-vector-text", isFivePlayerValue ? "five-whist-value" : "", isLastChange ? "last-change" : ""].filter(Boolean).join(" "),
+    "text-anchor": "middle",
+    "dominant-baseline": "middle",
+    "alignment-baseline": "middle",
+    dy: isFivePlayerValue ? "0.08em" : "0.10em",
+  });
+  textNode.textContent = value;
+  group.appendChild(textNode);
+  return group;
 }
 
 function totalIndexFromOpponents(opponents) {
@@ -3770,8 +3971,10 @@ function applySheetTextBackdrops(svg) {
   svg.querySelectorAll("text").forEach((textNode) => {
     if (textNode.closest(".score-combo")) return;
     if (textNode.closest(".classic-label-combo")) return;
+    if (textNode.closest(".whist-vector-cell")) return;
     if (textNode.classList.contains("center-label") || textNode.classList.contains("center-value")) return;
     const className = textNode.getAttribute("class") || "";
+    if (/whist-cell-value/.test(className)) return;
     const isWhistValue = /(?:whist-track|missing-whist|five-whist-value)/.test(className);
     const isPoolTrack = /pool-track/.test(className);
     const shortValue = textNode.textContent.trim().length <= 2 && isWhistValue;
@@ -3822,4 +4025,8 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
+
+
 
