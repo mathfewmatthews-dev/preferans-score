@@ -4775,7 +4775,7 @@ body:not(.game-started) #floatingShareButton,
 
 /* Touch-friendly color palette for mobile browsers */
 .mobile-color-palette {
-  display: grid;
+  display: none;
   gap: 12px;
   padding: 14px;
   margin: 18px 0 14px;
@@ -4857,6 +4857,10 @@ body:not(.game-started) #floatingShareButton,
 }
 
 @media (max-width: 720px) {
+  .mobile-color-palette:not([hidden]) {
+    display: grid;
+  }
+
   .mobile-color-palette {
     padding: 16px;
     border-radius: 16px;
@@ -4896,3 +4900,4 @@ body:not(.game-started) #floatingShareButton,
   border: 1px solid var(--stripe-border);
   border-radius: 10px;
 }
+

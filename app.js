@@ -934,21 +934,9 @@ function updateThemeFromInputs() {
 }
 
 function bindColorPaletteControls() {
-  const inputs = THEME_COLOR_INPUT_IDS.map((id) => el[id]).filter(Boolean);
-  if (!el.colorPalette || !el.paletteSwatches || inputs.length === 0) return;
-  if (el.paletteTargetSelect && !el.paletteTargetSelect.dataset.ready) {
-    inputs.forEach((input) => {
-      const option = document.createElement("option");
-      option.value = input.id;
-      option.textContent = input.closest(".color-field")?.querySelector("span")?.textContent?.trim() || input.id;
-      el.paletteTargetSelect.appendChild(option);
-    });
-    el.paletteTargetSelect.addEventListener("change", () => {
-      const nextInput = document.getElementById(el.paletteTargetSelect.value);
-      if (nextInput) openColorPalette(nextInput);
-    });
-    el.paletteTargetSelect.dataset.ready = "true";
-  }
+  const input = el.clothColor;
+  if (!el.colorPalette || !el.paletteSwatches || !input) return;
+  el.colorPalette.hidden = true;
   if (!el.paletteSwatches.dataset.ready) {
     COLOR_PALETTE.forEach((color) => {
       const button = document.createElement("button");
@@ -962,13 +950,26 @@ function bindColorPaletteControls() {
     });
     el.paletteSwatches.dataset.ready = "true";
   }
-  inputs.forEach((input) => {
-    input.addEventListener("focus", () => openColorPalette(input));
-    input.addEventListener("click", () => openColorPalette(input));
-    input.addEventListener("input", () => syncColorPalette(input));
+  const clothField = input.closest(".color-field");
+  const handleClothPaletteRequest = (event) => {
+    if (!isMobileColorPaletteTarget(input)) return;
+    event.preventDefault();
+    openColorPalette(input);
+  };
+  clothField?.addEventListener("click", handleClothPaletteRequest);
+  input.addEventListener("pointerdown", handleClothPaletteRequest);
+  input.addEventListener("click", handleClothPaletteRequest);
+  input.addEventListener("focus", () => {
+    if (isMobileColorPaletteTarget(input)) openColorPalette(input);
+  });
+  input.addEventListener("input", () => {
+    if (!el.colorPalette.hidden) syncColorPalette(input);
+  });
+  window.addEventListener("resize", () => {
+    if (!isMobileColorPaletteTarget(activePaletteInput)) closeColorPalette();
   });
   el.paletteHexInput?.addEventListener("focus", () => {
-    if (!activePaletteInput && inputs[0]) openColorPalette(inputs[0]);
+    if (isMobileColorPaletteTarget(input)) openColorPalette(input);
   });
   el.paletteHexInput?.addEventListener("input", () => {
     const normalized = normalizeHexInput(el.paletteHexInput.value);
@@ -978,16 +979,26 @@ function bindColorPaletteControls() {
     }
     applyPaletteColor(normalized, { keepFocus: true });
   });
-  if (!activePaletteInput) openColorPalette(inputs[0]);
+}
+
+function isMobileColorPaletteTarget(input) {
+  return Boolean(input && input.id === "clothColor" && window.matchMedia("(max-width: 720px)").matches);
+}
+
+function closeColorPalette() {
+  if (el.colorPalette) el.colorPalette.hidden = true;
+  activePaletteInput = null;
 }
 
 function openColorPalette(input) {
-  if (!input || !el.colorPalette) return;
+  if (!input || !el.colorPalette || !isMobileColorPaletteTarget(input)) {
+    closeColorPalette();
+    return;
+  }
   activePaletteInput = input;
   el.colorPalette.hidden = false;
   syncColorPalette(input);
 }
-
 function syncColorPalette(input = activePaletteInput) {
   if (!input || !el.colorPalette) return;
   activePaletteInput = input;
@@ -4025,6 +4036,8 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
 
 
 
