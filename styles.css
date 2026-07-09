@@ -5252,3 +5252,21 @@ body.game-started .score-table-card h2 {
     font-size: clamp(20px, 5vw, 28px) !important;
   }
 }
+/* Mobile history title wrapping */
+@media (max-width: 720px) {
+  .history-title {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+    white-space: normal !important;
+  }
+
+  .history-title > span {
+    display: block !important;
+    min-width: 0 !important;
+  }
+
+  .history-title > span:not(:last-child)::after {
+    content: none !important;
+  }
+}
