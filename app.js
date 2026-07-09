@@ -3347,7 +3347,7 @@ function getUrlGameId() {
 }
 
 function generateGameToken() {
-  const bytes = new Uint8Array(18);
+  const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
@@ -3547,7 +3547,7 @@ function currentGameUrl() {
   const url = new URL(base, window.location.href);
   url.search = "";
   url.hash = "";
-  url.searchParams.set("g", state.gameId);
+  url.hash = state.gameId;
   return url.href;
 }
 
@@ -3604,10 +3604,11 @@ function createQrSvg(value) {
 
 function createQrMatrix(value) {
   const bytes = Array.from(new TextEncoder().encode(value));
-  const version = 5;
+  const version = bytes.length <= 78 ? 4 : 5;
   const size = 21 + (version - 1) * 4;
-  const dataCodewords = 108;
-  const eccCodewords = 26;
+  const dataCodewords = version === 4 ? 80 : 108;
+  const eccCodewords = version === 4 ? 20 : 26;
+  const alignment = version === 4 ? 26 : 30;
   if (bytes.length > 106) throw new Error("QR input is too long");
   const bits = [];
   const pushBits = (number, length) => {
@@ -3652,7 +3653,7 @@ function createQrMatrix(value) {
     set(6, i, i % 2 === 0);
     set(i, 6, i % 2 === 0);
   }
-  drawAlignment(30, 30, set);
+  drawAlignment(alignment, alignment, set);
   reserveFormatAreas(size, set);
   set(size - 8, 8, true);
   const dataBits = [];
@@ -4281,6 +4282,9 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
+
 
 
 
