@@ -5001,3 +5001,58 @@ body:not(.game-started) #floatingShareButton,
 
 
 
+
+/* Final progress badge placement: keep it under the game title, never beside it. */
+.pool-meta,
+body.game-started .pool-meta {
+  grid-template-columns: minmax(0, 1fr) !important;
+  justify-items: center !important;
+  align-items: start !important;
+  column-gap: 0 !important;
+  row-gap: 6px !important;
+  margin-bottom: 0 !important;
+}
+
+.pool-meta > div,
+body.game-started .pool-meta > div {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  justify-self: center !important;
+  text-align: center !important;
+}
+
+#closedBadge,
+body.game-started #closedBadge {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  justify-self: center !important;
+  align-self: start !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  max-width: min(620px, calc(100% - 24px)) !important;
+  white-space: normal !important;
+  line-height: 1.15 !important;
+  padding: 7px 16px !important;
+}
+
+@media (max-width: 1180px) {
+  #closedBadge,
+  body.game-started #closedBadge {
+    max-width: min(520px, calc(100% - 16px)) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .pool-meta,
+  body.game-started .pool-meta {
+    row-gap: 8px !important;
+  }
+
+  #closedBadge,
+  body.game-started #closedBadge {
+    max-width: calc(100% - 12px) !important;
+    padding: 6px 12px !important;
+  }
+}

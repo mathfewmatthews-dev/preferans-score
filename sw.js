@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "preference-pwa-v47";
+﻿const CACHE_NAME = "preference-pwa-v48";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -46,24 +46,3 @@ self.addEventListener("fetch", (event) => {
     }))
   );
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
