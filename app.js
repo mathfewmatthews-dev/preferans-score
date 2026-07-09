@@ -175,6 +175,7 @@ const el = {
   paletteHexInput: document.getElementById("paletteHexInput"),
   paletteSwatches: document.getElementById("paletteSwatches"),
   paletteError: document.getElementById("paletteError"),
+  closePaletteButton: document.getElementById("closePaletteButton"),
   lightModeButton: document.getElementById("lightModeButton"),
   darkModeButton: document.getElementById("darkModeButton"),
   scoreCountingMode: document.getElementById("scoreCountingMode"),
@@ -225,6 +226,8 @@ const el = {
   openRecordButton: document.getElementById("openRecordButton"),
   floatingRecordButton: document.getElementById("floatingRecordButton"),
   floatingShareButton: document.getElementById("floatingShareButton"),
+  shareQrPopover: document.getElementById("shareQrPopover"),
+  shareQrCode: document.getElementById("shareQrCode"),
   recordModal: document.getElementById("recordModal"),
   recordTitle: document.getElementById("recordTitle"),
   closeRecordButton: document.getElementById("closeRecordButton"),
@@ -330,6 +333,10 @@ function bindEvents() {
   el.openRecordButton.addEventListener("click", openRecordWizard);
   el.floatingRecordButton.addEventListener("click", openRecordWizard);
   el.floatingShareButton?.addEventListener("click", shareCurrentGame);
+  document.addEventListener("click", closeShareQrOnOutsideClick);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hideShareQrPopover();
+  });
   el.closeRecordButton.addEventListener("click", closeRecordWizard);
   el.recordModal.addEventListener("click", (event) => {
     if (event.target === el.recordModal) closeRecordWizard();
@@ -934,8 +941,7 @@ function updateThemeFromInputs() {
 }
 
 function bindColorPaletteControls() {
-  const input = el.clothColor;
-  if (!el.colorPalette || !el.paletteSwatches || !input) return;
+  if (!el.colorPalette || !el.paletteSwatches) return;
   el.colorPalette.hidden = true;
   if (!el.paletteSwatches.dataset.ready) {
     COLOR_PALETTE.forEach((color) => {
@@ -950,26 +956,36 @@ function bindColorPaletteControls() {
     });
     el.paletteSwatches.dataset.ready = "true";
   }
-  const clothField = input.closest(".color-field");
-  const handleClothPaletteRequest = (event) => {
-    if (!isMobileColorPaletteTarget(input)) return;
-    event.preventDefault();
-    openColorPalette(input);
-  };
-  clothField?.addEventListener("click", handleClothPaletteRequest);
-  input.addEventListener("pointerdown", handleClothPaletteRequest);
-  input.addEventListener("click", handleClothPaletteRequest);
-  input.addEventListener("focus", () => {
-    if (isMobileColorPaletteTarget(input)) openColorPalette(input);
+
+  colorPaletteInputs().forEach((input) => {
+    const field = input.closest(".color-field");
+    const requestPalette = (event) => {
+      if (!isMobileColorPaletteTarget(input)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      input.blur();
+      openColorPalette(input);
+    };
+    field?.addEventListener("click", requestPalette);
+    input.addEventListener("pointerdown", requestPalette);
+    input.addEventListener("click", requestPalette);
+    input.addEventListener("focus", () => {
+      if (isMobileColorPaletteTarget(input)) openColorPalette(input);
+    });
+    input.addEventListener("input", () => {
+      if (activePaletteInput === input && !el.colorPalette.hidden) syncColorPalette(input);
+    });
   });
-  input.addEventListener("input", () => {
-    if (!el.colorPalette.hidden) syncColorPalette(input);
+
+  el.colorPalette.addEventListener("click", (event) => {
+    if (event.target === el.colorPalette) closeColorPalette();
+  });
+  el.closePaletteButton?.addEventListener("click", closeColorPalette);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeColorPalette();
   });
   window.addEventListener("resize", () => {
     if (!isMobileColorPaletteTarget(activePaletteInput)) closeColorPalette();
-  });
-  el.paletteHexInput?.addEventListener("focus", () => {
-    if (isMobileColorPaletteTarget(input)) openColorPalette(input);
   });
   el.paletteHexInput?.addEventListener("input", () => {
     const normalized = normalizeHexInput(el.paletteHexInput.value);
@@ -981,13 +997,18 @@ function bindColorPaletteControls() {
   });
 }
 
+function colorPaletteInputs() {
+  return COLOR_FIELD_IDS.map((id) => el[id]).filter(Boolean);
+}
+
 function isMobileColorPaletteTarget(input) {
-  return Boolean(input && input.id === "clothColor" && window.matchMedia("(max-width: 720px)").matches);
+  return Boolean(input && colorPaletteInputs().includes(input) && window.matchMedia("(max-width: 720px)").matches);
 }
 
 function closeColorPalette() {
   if (el.colorPalette) el.colorPalette.hidden = true;
   activePaletteInput = null;
+  setPaletteError("");
 }
 
 function openColorPalette(input) {
@@ -998,6 +1019,7 @@ function openColorPalette(input) {
   activePaletteInput = input;
   el.colorPalette.hidden = false;
   syncColorPalette(input);
+  window.setTimeout(() => el.paletteHexInput?.focus({ preventScroll: true }), 0);
 }
 function syncColorPalette(input = activePaletteInput) {
   if (!input || !el.colorPalette) return;
@@ -2271,6 +2293,7 @@ function updateGameControls() {
   if (el.floatingShareButton) {
     el.floatingShareButton.disabled = disabled;
     el.floatingShareButton.hidden = disabled;
+    if (disabled) hideShareQrPopover();
   }
   el.saveButton.textContent = gameStarted() ? "Сохранить игру" : "Сохранить конвенцию";
 }
@@ -3520,10 +3543,224 @@ function currentGameUrl() {
   return window.location.href;
 }
 
-async function shareCurrentGame() {
+function closeShareQrOnOutsideClick(event) {
+  if (!el.shareQrPopover || el.shareQrPopover.hidden) return;
+  const target = event.target;
+  if (el.shareQrPopover.contains(target) || el.floatingShareButton?.contains(target)) return;
+  hideShareQrPopover();
+}
+
+function hideShareQrPopover() {
+  if (el.shareQrPopover) el.shareQrPopover.hidden = true;
+}
+
+function showShareQrPopover(url) {
+  if (!el.shareQrPopover || !el.shareQrCode) return;
+  el.shareQrCode.innerHTML = "";
+  try {
+    el.shareQrCode.appendChild(createQrSvg(url));
+  } catch (error) {
+    const note = document.createElement("p");
+    note.className = "share-qr-error";
+    note.textContent = "QR не удалось построить: ссылка слишком длинная.";
+    el.shareQrCode.appendChild(note);
+  }
+  el.shareQrPopover.hidden = false;
+}
+
+function createQrSvg(value) {
+  const matrix = createQrMatrix(value);
+  const quiet = 4;
+  const moduleSize = 6;
+  const pixelSize = (matrix.length + quiet * 2) * moduleSize;
+  let path = "";
+  matrix.forEach((row, y) => {
+    row.forEach((dark, x) => {
+      if (!dark) return;
+      const px = (x + quiet) * moduleSize;
+      const py = (y + quiet) * moduleSize;
+      path += `M${px} ${py}h${moduleSize}v${moduleSize}h-${moduleSize}z`;
+    });
+  });
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${pixelSize} ${pixelSize}`);
+  svg.setAttribute("width", "180");
+  svg.setAttribute("height", "180");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "QR-код ссылки игры");
+  svg.classList.add("share-qr-svg");
+  svg.appendChild(node("rect", { x: 0, y: 0, width: pixelSize, height: pixelSize, class: "share-qr-bg" }));
+  svg.appendChild(node("path", { d: path, class: "share-qr-modules" }));
+  return svg;
+}
+
+function createQrMatrix(value) {
+  const bytes = Array.from(new TextEncoder().encode(value));
+  const version = 5;
+  const size = 21 + (version - 1) * 4;
+  const dataCodewords = 108;
+  const eccCodewords = 26;
+  if (bytes.length > 106) throw new Error("QR input is too long");
+  const bits = [];
+  const pushBits = (number, length) => {
+    for (let i = length - 1; i >= 0; i -= 1) bits.push(((number >>> i) & 1) === 1);
+  };
+  pushBits(0b0100, 4);
+  pushBits(bytes.length, 8);
+  bytes.forEach((byte) => pushBits(byte, 8));
+  const capacityBits = dataCodewords * 8;
+  pushBits(0, Math.min(4, capacityBits - bits.length));
+  while (bits.length % 8) bits.push(false);
+  const data = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let byte = 0;
+    for (let j = 0; j < 8; j += 1) byte = (byte << 1) | (bits[i + j] ? 1 : 0);
+    data.push(byte);
+  }
+  for (let pad = 0; data.length < dataCodewords; pad += 1) data.push(pad % 2 === 0 ? 0xec : 0x11);
+  const codewords = data.concat(qrReedSolomon(data, eccCodewords));
+  const matrix = Array.from({ length: size }, () => Array(size).fill(false));
+  const reserved = Array.from({ length: size }, () => Array(size).fill(false));
+  const set = (row, col, dark, reserve = true) => {
+    if (row < 0 || col < 0 || row >= size || col >= size) return;
+    matrix[row][col] = Boolean(dark);
+    if (reserve) reserved[row][col] = true;
+  };
+  const drawFinder = (row, col) => {
+    for (let y = -1; y <= 7; y += 1) {
+      for (let x = -1; x <= 7; x += 1) {
+        const r = row + y;
+        const c = col + x;
+        const inFinder = x >= 0 && x <= 6 && y >= 0 && y <= 6;
+        const dark = inFinder && (x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4));
+        set(r, c, dark);
+      }
+    }
+  };
+  drawFinder(0, 0);
+  drawFinder(0, size - 7);
+  drawFinder(size - 7, 0);
+  for (let i = 8; i < size - 8; i += 1) {
+    set(6, i, i % 2 === 0);
+    set(i, 6, i % 2 === 0);
+  }
+  drawAlignment(30, 30, set);
+  reserveFormatAreas(size, set);
+  set(size - 8, 8, true);
+  const dataBits = [];
+  codewords.forEach((byte) => pushCodewordBits(byte, dataBits));
+  let bitIndex = 0;
+  let upward = true;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right -= 1;
+    for (let vert = 0; vert < size; vert += 1) {
+      const row = upward ? size - 1 - vert : vert;
+      for (let offset = 0; offset < 2; offset += 1) {
+        const col = right - offset;
+        if (reserved[row][col]) continue;
+        let dark = bitIndex < dataBits.length ? dataBits[bitIndex] : false;
+        bitIndex += 1;
+        if ((row + col) % 2 === 0) dark = !dark;
+        set(row, col, dark, false);
+      }
+    }
+    upward = !upward;
+  }
+  drawFormatBits(size, 1, 0, set);
+  return matrix;
+}
+
+function drawAlignment(row, col, set) {
+  for (let y = -2; y <= 2; y += 1) {
+    for (let x = -2; x <= 2; x += 1) {
+      set(row + y, col + x, Math.max(Math.abs(x), Math.abs(y)) !== 1);
+    }
+  }
+}
+
+function reserveFormatAreas(size, set) {
+  for (let i = 0; i < 9; i += 1) {
+    if (i !== 6) {
+      set(8, i, false);
+      set(i, 8, false);
+    }
+  }
+  for (let i = 0; i < 8; i += 1) {
+    set(size - 1 - i, 8, false);
+    set(8, size - 1 - i, false);
+  }
+}
+
+function drawFormatBits(size, errorLevelBits, mask, set) {
+  const bits = qrFormatBits((errorLevelBits << 3) | mask);
+  const bit = (i) => ((bits >>> i) & 1) !== 0;
+  for (let i = 0; i <= 5; i += 1) set(8, i, bit(i));
+  set(8, 7, bit(6));
+  set(8, 8, bit(7));
+  set(7, 8, bit(8));
+  for (let i = 9; i < 15; i += 1) set(14 - i, 8, bit(i));
+  for (let i = 0; i < 8; i += 1) set(size - 1 - i, 8, bit(i));
+  for (let i = 8; i < 15; i += 1) set(8, size - 15 + i, bit(i));
+  set(size - 8, 8, true);
+}
+
+function qrFormatBits(data) {
+  let remainder = data << 10;
+  for (let i = 14; i >= 10; i -= 1) {
+    if (((remainder >>> i) & 1) !== 0) remainder ^= 0x537 << (i - 10);
+  }
+  return ((data << 10) | remainder) ^ 0x5412;
+}
+
+function pushCodewordBits(byte, output) {
+  for (let i = 7; i >= 0; i -= 1) output.push(((byte >>> i) & 1) !== 0);
+}
+
+function qrReedSolomon(data, degree) {
+  let generator = [1];
+  for (let i = 0; i < degree; i += 1) generator = qrPolyMultiply(generator, [1, qrGfPow(2, i)]);
+  const result = Array(degree).fill(0);
+  data.forEach((byte) => {
+    const factor = byte ^ result.shift();
+    result.push(0);
+    for (let i = 0; i < degree; i += 1) result[i] ^= qrGfMultiply(generator[i + 1], factor);
+  });
+  return result;
+}
+
+function qrPolyMultiply(left, right) {
+  const result = Array(left.length + right.length - 1).fill(0);
+  left.forEach((a, i) => {
+    right.forEach((b, j) => {
+      result[i + j] ^= qrGfMultiply(a, b);
+    });
+  });
+  return result;
+}
+
+function qrGfPow(value, power) {
+  let result = 1;
+  for (let i = 0; i < power; i += 1) result = qrGfMultiply(result, value);
+  return result;
+}
+
+function qrGfMultiply(a, b) {
+  let result = 0;
+  for (let i = 0; i < 8; i += 1) {
+    if ((b & 1) !== 0) result ^= a;
+    const carry = (a & 0x80) !== 0;
+    a = (a << 1) & 0xff;
+    if (carry) a ^= 0x1d;
+    b >>>= 1;
+  }
+  return result;
+}
+async function shareCurrentGame(event) {
+  event?.stopPropagation();
   if (!gameStarted()) return;
   const url = currentGameUrl();
   const title = "Пуля: " + state.convention;
+  showShareQrPopover(url);
   if (navigator.share && window.matchMedia?.("(max-width: 720px)")?.matches) {
     try {
       await navigator.share({ title, text: title, url });
@@ -4036,6 +4273,11 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
+
+
+
 
 
 
