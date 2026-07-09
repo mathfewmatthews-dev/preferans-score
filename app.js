@@ -3342,7 +3342,8 @@ function normalizeGameId(value) {
 }
 
 function getUrlGameId() {
-  return normalizeGameId(new URLSearchParams(window.location.search).get("game"));
+  const params = new URLSearchParams(window.location.search);
+  return normalizeGameId(params.get("game") || params.get("g") || window.location.hash.slice(1));
 }
 
 function generateGameToken() {
@@ -3546,7 +3547,7 @@ function currentGameUrl() {
   const url = new URL(base, window.location.href);
   url.search = "";
   url.hash = "";
-  url.searchParams.set("game", state.gameId);
+  url.searchParams.set("g", state.gameId);
   return url.href;
 }
 
@@ -3578,7 +3579,7 @@ function showShareQrPopover(url) {
 function createQrSvg(value) {
   const matrix = createQrMatrix(value);
   const quiet = 4;
-  const moduleSize = 6;
+  const moduleSize = 10;
   const pixelSize = (matrix.length + quiet * 2) * moduleSize;
   let path = "";
   matrix.forEach((row, y) => {
@@ -3591,8 +3592,8 @@ function createQrSvg(value) {
   });
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${pixelSize} ${pixelSize}`);
-  svg.setAttribute("width", "180");
-  svg.setAttribute("height", "180");
+  svg.setAttribute("width", "280");
+  svg.setAttribute("height", "280");
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "QR-код ссылки игры");
   svg.classList.add("share-qr-svg");
@@ -4280,6 +4281,9 @@ function keepInside(pos, marginX, marginY) {
 }
 
 initialize();
+
+
+
 
 
 
