@@ -1442,7 +1442,7 @@ function renderRoundRows() {
     const showUnderThree = type === "Взятки" && isDeclarer && currentConvention().underThreeLoss;
     if (showUnderThree) row.classList.add("has-under-three");
     const underThreeMarkup = showUnderThree
-      ? `<button type="button" class="under-three-button" data-under-three="${index}">Уход без 3</button>`
+      ? `<button type="button" class="under-three-button" data-under-three="${index}">Уход без трёх</button>`
       : "";
     const roleLineMarkup = showUnderThree
       ? `<div class="role-line">${roleMarkup}${underThreeMarkup}</div>`
@@ -2344,20 +2344,21 @@ function renderPossibleGames() {
 function buildPossibleGames() {
   const convention = currentConvention();
   const hasRaspassProgression = convention.raspassProgression !== "none";
+  const raspassExitIsActive = hasRaspassProgression && (state.raspassLevel || 0) > 0;
   const raspassProgression = hasRaspassProgression
     ? progressionSequence(convention.raspassProgression).map(format).join("-")
     : "без прогрессии";
-  const exitMinimum = minimumContractForRaspassExit();
+  const availableContractMin = raspassExitIsActive ? minimumContractForRaspassExit() : 6;
   const cards = [
     {
       type: "Взятки",
       mark: "♠",
       title: "Игра",
-      detail: "Контракты 6-10",
+      detail: `Контракты ${format(availableContractMin)}-10`,
       chips: [
-        state.players.length === 3 ? "вистуют оба" : "вист / пас / полвиста",
-        convention.underThreeLoss ? "уход без 3 доступен" : "без ухода без 3",
-        hasRaspassProgression ? `после распасов от ${format(exitMinimum)}` : "обычная запись",
+        state.players.length === 3 ? "вист / пас" : "вист / пас / полвиста",
+        convention.underThreeLoss ? "уход без трёх доступен" : "без ухода без трёх",
+        raspassExitIsActive ? raspassExitConditionLabel(convention) : "обычная запись",
       ],
     },
     {
@@ -2366,9 +2367,9 @@ function buildPossibleGames() {
       title: "Распасы",
       detail: `Сейчас ${format(raspassContract())}`,
       chips: [
-        `прогрессия ${raspassProgression}`,
+        hasRaspassProgression ? `прогрессия ${raspassProgression}` : raspassProgression,
         raspassScoringLabel(convention),
-        convention.raspassZeroTricksPool ? "0 взяток в пулю" : "без записи за 0",
+        convention.raspassZeroTricksPool ? "за 0 взяток очки в пулю" : "без записи за 0 взяток",
       ],
     },
     {
@@ -2377,7 +2378,7 @@ function buildPossibleGames() {
       title: "Мизер",
       detail: "Не взять ни одной",
       chips: [
-        convention.misereExitsRaspass ? "выводит из распасов" : "не сбрасывает распасы",
+        hasRaspassProgression ? (convention.misereExitsRaspass ? "выводит из распасов" : "не сбрасывает распасы") : "отдельная запись",
         "можно отметить карты",
       ],
     },
@@ -2387,13 +2388,21 @@ function buildPossibleGames() {
     cards.push({
       type: "Взятки",
       mark: "♥",
-      title: "Уход без 3",
+      title: "Уход без трёх",
       detail: "Быстрый ремиз",
       chips: ["кнопка у играющего", "контракт выбирается в записи"],
     });
   }
 
   return cards;
+}
+
+function raspassExitConditionLabel(convention) {
+  if (convention.raspassExitCondition === "one-whister-no-penalty") return "выход: вист без штрафа";
+  if (convention.raspassExitCondition === "both-whist-together") return "выход: оба вистуют без штрафа";
+  if (convention.raspassExitCondition === "both-whist-each") return "выход: каждый вист без штрафа";
+  if (convention.raspassExitCondition === "half-whist") return "выход: полвиста";
+  return "выход: сыгранная игра";
 }
 
 function raspassScoringLabel(convention) {
