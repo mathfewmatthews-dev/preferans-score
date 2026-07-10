@@ -3258,13 +3258,16 @@ body:not(.game-started) .pool-sheet-wrap {
 .convention-settings-panel .settings-head {
   color: var(--ink) !important;
   border-top: 1px solid var(--stripe-border);
-  border-bottom: 1px solid var(--stripe-border);
   padding: 10px 0 8px !important;
   margin: 8px 0 0;
 }
 
 .convention-settings-panel .settings-table label {
   border-top-color: var(--stripe-border) !important;
+}
+
+.convention-settings-panel .settings-head + label {
+  border-top: 0 !important;
 }
 
 .convention-settings-panel #conventionName,
@@ -5268,5 +5271,164 @@ body.game-started .score-table-card h2 {
 
   .history-title > span:not(:last-child)::after {
     content: none !important;
+  }
+}
+
+/* Possible games helper cards */
+body:not(.game-started) .possible-games-card {
+  display: none !important;
+}
+
+.possible-games-card {
+  min-width: 0;
+  padding: 16px;
+  background: var(--stripe-surface) !important;
+  color: var(--ink);
+  border: 1px solid var(--stripe-border);
+  border-radius: 16px;
+  box-shadow: var(--neu-raised);
+}
+
+.possible-games-card h2,
+body.game-started .possible-games-card h2 {
+  margin: 0 0 16px !important;
+  font-family: "Share Tech Rus", "Share Tech", "Segoe UI", Arial, sans-serif !important;
+  font-size: clamp(28px, 2.2vw, 40px) !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0 !important;
+  color: var(--text) !important;
+}
+
+.possible-games-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 10px;
+}
+
+.possible-game-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 148px;
+  padding: 14px 12px 12px;
+  overflow: hidden;
+  text-align: left;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--stripe-surface) 92%, var(--accent) 8%);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--stripe-border));
+  border-radius: 12px;
+  box-shadow: var(--neu-raised-soft);
+  cursor: pointer;
+}
+
+.possible-game-card::after {
+  content: attr(data-mark);
+  position: absolute;
+  right: 8px;
+  bottom: -14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 72px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--accent) 16%, transparent);
+  pointer-events: none;
+}
+
+.possible-game-card:hover,
+.possible-game-card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--stripe-border));
+  background: color-mix(in srgb, var(--stripe-surface) 86%, var(--accent) 14%);
+}
+
+.possible-game-card:focus-visible {
+  outline: 3px solid var(--neu-focus);
+  outline-offset: 2px;
+}
+
+.possible-game-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--button-text);
+  background: var(--accent);
+  border-radius: 8px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.possible-game-card strong {
+  font-size: 18px;
+  line-height: 1.12;
+}
+
+.possible-game-detail {
+  color: var(--muted-text);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.possible-game-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.possible-game-chips span {
+  padding: 4px 7px;
+  color: var(--muted-text);
+  background: var(--stripe-muted-surface);
+  border: 1px solid var(--stripe-border);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+@media (min-width: 1181px) {
+  body.game-started .score-area {
+    grid-template-rows: auto auto minmax(0, 1fr) !important;
+  }
+
+  body.game-started .pool-card {
+    grid-row: 1 / span 3 !important;
+  }
+
+  body.game-started .possible-games-card {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    min-height: 0 !important;
+  }
+
+  body.game-started .history-card {
+    grid-row: 3 !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .possible-games-card {
+    padding: 16px;
+  }
+
+  .possible-games-list {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(168px, 72vw);
+    grid-template-columns: none;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+    padding-bottom: 4px;
+  }
+
+  .possible-game-card {
+    scroll-snap-align: start;
+    min-height: 136px;
+  }
+}
+
+@media (max-width: 720px) {
+  .possible-games-card h2,
+  body.game-started .possible-games-card h2 {
+    font-size: clamp(20px, 5vw, 28px) !important;
   }
 }

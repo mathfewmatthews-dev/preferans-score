@@ -50,8 +50,10 @@ const STANDARD_CONVENTIONS = {
     raspassProgression: "none",
     raspassProgressionStop: "cycle",
     raspassExitCondition: "game",
-    raspassExitGameProgression: "none",
     raspassZeroTricksPool: false,
+    raspassScoringMode: "mountain",
+    gameWinWriteMode: "pool",
+    raspassTalonMode: "standard",
     underThreeLoss: false,
     misereExitsRaspass: false,
     greedyWhist: "no",
@@ -83,8 +85,10 @@ const STANDARD_CONVENTIONS = {
     raspassProgression: "6-7-8",
     raspassProgressionStop: "cycle",
     raspassExitCondition: "one-whister-no-penalty",
-    raspassExitGameProgression: "6-7-8",
     raspassZeroTricksPool: true,
+    raspassScoringMode: "mountain",
+    gameWinWriteMode: "pool",
+    raspassTalonMode: "standard",
     underThreeLoss: false,
     misereExitsRaspass: false,
     greedyWhist: "yes",
@@ -100,6 +104,41 @@ const STANDARD_CONVENTIONS = {
     poolUnit: 20,
     mountainUnit: 10,
     notes: "",
+  },
+  "Ростов": {
+    name: "Ростов",
+    game6: 2,
+    game7: 4,
+    game8: 6,
+    game9: 8,
+    game10: 10,
+    gamePenaltyMultiplier: 1,
+    whistTrickMultiplier: 1,
+    whistPenaltyMultiplier: 1,
+    declarerRemizWhistMode: "gentleman",
+    whistResponsibility: "half",
+    raspassProgression: "none",
+    raspassProgressionStop: "cycle",
+    raspassExitCondition: "game",
+    raspassZeroTricksPool: false,
+    raspassScoringMode: "rostov-whist",
+    gameWinWriteMode: "mountain-first",
+    raspassTalonMode: "closed",
+    underThreeLoss: false,
+    misereExitsRaspass: false,
+    greedyWhist: "no",
+    restingTalonPool: "no",
+    restingRaspassMountain: "no",
+    whistShortfallDistribution: "whisters",
+    whistRequirementMode: "together",
+    minWhist6: 4,
+    minWhist7: 2,
+    minWhist8: 1,
+    minWhist9: 1,
+    minWhist10: 0,
+    poolUnit: 10,
+    mountainUnit: 10,
+    notes: "Ростов: прикуп на распасах не открывается; взявший минимум пишет висты на остальных; успешная игра сначала уменьшает гору.",
   },
 };
 
@@ -212,6 +251,7 @@ const el = {
   conventionDescription: document.getElementById("conventionDescription"),
   gameConventionDescription: document.getElementById("gameConventionDescription"),
   conventionPanel: document.getElementById("conventionPanel"),
+  conventionModalSelect: document.getElementById("conventionModalSelect"),
   conventionName: document.getElementById("conventionName"),
   conventionSettingInputs: [...document.querySelectorAll("[data-convention-setting]")],
   closedBadge: document.getElementById("closedBadge"),
@@ -225,6 +265,8 @@ const el = {
   confirmAddPoolButton: document.getElementById("confirmAddPoolButton"),
   scoreBody: document.getElementById("scoreBody"),
   historyList: document.getElementById("historyList"),
+  possibleGamesCard: document.getElementById("possibleGamesCard"),
+  possibleGamesList: document.getElementById("possibleGamesList"),
   openRecordButton: document.getElementById("openRecordButton"),
   floatingRecordButton: document.getElementById("floatingRecordButton"),
   floatingShareButton: document.getElementById("floatingShareButton"),
@@ -293,6 +335,7 @@ function bindEvents() {
   });
   el.playerCount.addEventListener("change", updateSetupPlayerCount);
   el.convention.addEventListener("change", selectConvention);
+  el.conventionModalSelect?.addEventListener("change", selectConventionFromModal);
   el.conventionName.addEventListener("input", updateCustomConventionName);
   el.conventionSettingInputs.forEach((input) => input.addEventListener("input", updateConventionSetting));
   el.themeColor.addEventListener("input", updateThemeFromInputs);
@@ -337,6 +380,7 @@ function bindEvents() {
   el.openRecordButton.addEventListener("click", openRecordWizard);
   el.floatingRecordButton.addEventListener("click", openRecordWizard);
   el.floatingShareButton?.addEventListener("click", shareCurrentGame);
+  el.possibleGamesList?.addEventListener("click", selectPossibleGame);
   document.addEventListener("click", closeShareQrOnOutsideClick);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") hideShareQrPopover();
@@ -512,11 +556,20 @@ function currentConvention() {
 
 function renderConventionOptions() {
   const selected = state.convention;
-  el.convention.innerHTML = allConventions()
+  const options = allConventions()
     .map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`)
     .join("");
-  el.convention.value = allConventions().some((item) => item.name === selected) ? selected : "Сочи";
-  state.convention = el.convention.value;
+  const value = allConventions().some((item) => item.name === selected) ? selected : "Сочи";
+  if (el.convention) {
+    el.convention.innerHTML = options;
+    el.convention.value = value;
+  }
+  if (el.conventionModalSelect) {
+    el.conventionModalSelect.innerHTML = options;
+    el.conventionModalSelect.value = value;
+    el.conventionModalSelect.disabled = document.body.classList.contains("game-started");
+  }
+  state.convention = value;
 }
 
 function renderConventionPanel() {
@@ -525,6 +578,10 @@ function renderConventionPanel() {
   const isCustom = !standardConventionNames().includes(convention.name);
   const title = document.getElementById("conventionSettingsTitle");
   if (title) title.textContent = locked ? "Конвенция" : "Настройки конвенции";
+  if (el.conventionModalSelect) {
+    el.conventionModalSelect.value = convention.name;
+    el.conventionModalSelect.disabled = locked;
+  }
   if (el.conventionName) {
     el.conventionName.value = convention.name;
     el.conventionName.disabled = locked || !isCustom;
@@ -541,6 +598,14 @@ function renderConventionPanel() {
 
 function selectConvention() {
   state.convention = el.convention.value;
+  renderConventionOptions();
+  renderConventionPanel();
+  refresh();
+}
+
+function selectConventionFromModal() {
+  state.convention = el.conventionModalSelect.value;
+  renderConventionOptions();
   renderConventionPanel();
   refresh();
 }
@@ -584,7 +649,7 @@ function updateConventionDependencyStates(locked) {
   ["restingTalonPool", "restingRaspassMountain"].forEach((key) => {
     const input = document.querySelector(`[data-convention-setting="${key}"]`);
     if (!input) return;
-    const disabled = locked || state.players.length === 3;
+    const disabled = locked || state.players.length === 3 || (key === "restingRaspassMountain" && current.raspassTalonMode === "closed");
     input.disabled = disabled;
     input.closest("label")?.classList.toggle("disabled-field", disabled);
   });
@@ -648,10 +713,12 @@ function normalizeConventionConfig(source) {
     declarerRemizWhistMode,
     whistResponsibility,
     raspassProgression: normalizeProgression(source.raspassProgression || fallback.raspassProgression),
-    raspassProgressionStop: source.raspassProgressionStop || fallback.raspassProgressionStop,
+    raspassProgressionStop: normalizeRaspassProgressionStop(source.raspassProgressionStop, fallback.raspassProgressionStop),
     raspassExitCondition: source.raspassExitCondition || fallback.raspassExitCondition,
-    raspassExitGameProgression: normalizeProgression(source.raspassExitGameProgression || fallback.raspassExitGameProgression),
     raspassZeroTricksPool: normalizeRaspassZeroTricksPool(source.raspassZeroTricksPool, fallback.raspassZeroTricksPool),
+    raspassScoringMode: normalizeRaspassScoringMode(source.raspassScoringMode, fallback.raspassScoringMode),
+    gameWinWriteMode: normalizeGameWinWriteMode(source.gameWinWriteMode, fallback.gameWinWriteMode),
+    raspassTalonMode: normalizeRaspassTalonMode(source.raspassTalonMode, fallback.raspassTalonMode),
     underThreeLoss: Boolean(source.underThreeLoss ?? fallback.underThreeLoss),
     misereExitsRaspass: Boolean(source.misereExitsRaspass ?? fallback.misereExitsRaspass),
     greedyWhist: declarerRemizWhistMode === "greedy" ? "yes" : "no",
@@ -674,6 +741,24 @@ function normalizeYesNoSetting(value, fallback) {
   if (value === true || value === "yes") return "yes";
   if (value === false || value === "no") return "no";
   return fallback;
+}
+
+function normalizeRaspassScoringMode(value, fallback = "mountain") {
+  return ["mountain", "rostov-whist"].includes(value) ? value : fallback || "mountain";
+}
+
+function normalizeGameWinWriteMode(value, fallback = "pool") {
+  return ["pool", "mountain-first"].includes(value) ? value : fallback || "pool";
+}
+
+function normalizeRaspassTalonMode(value, fallback = "standard") {
+  return ["standard", "closed"].includes(value) ? value : fallback || "standard";
+}
+
+function normalizeRaspassProgressionStop(value, fallback = "cycle") {
+  const normalized = value === "cycle-until-game" ? "until-game" : value;
+  if (["cycle", "until-game"].includes(normalized)) return normalized;
+  return ["cycle", "until-game"].includes(fallback) ? fallback : "cycle";
 }
 
 function normalizeProgression(value) {
@@ -1216,6 +1301,7 @@ function applyTheme() {
 }
 function syncControlsFromState() {
   if (el.convention) el.convention.value = state.convention;
+  if (el.conventionModalSelect) el.conventionModalSelect.value = state.convention;
   if (el.poolTarget) el.poolTarget.value = String(state.poolTarget);
   if (el.themeColor) el.themeColor.value = state.themeColor;
   if (el.buttonTextColor) el.buttonTextColor.value = state.buttonTextColor;
@@ -1384,7 +1470,10 @@ function renderRoundRows() {
 function restingTricksAllowed(role) {
   if (role !== "Отдыхает" || state.players.length < 4) return false;
   if (el.gameType.value === "Взятки") return currentConvention().restingTalonPool === "yes";
-  if (el.gameType.value === "Распасы") return currentConvention().restingRaspassMountain === "yes";
+  if (el.gameType.value === "Распасы") {
+    const convention = currentConvention();
+    return convention.raspassTalonMode !== "closed" && convention.restingRaspassMountain === "yes";
+  }
   return false;
 }
 
@@ -1469,13 +1558,15 @@ function selectContract(event) {
   updateTrickValidation();
 }
 
-function openRecordWizard() {
+function openRecordWizard(type = "") {
   if (!gameStarted()) return;
+  const requestedType = typeof type === "string" ? type : "";
+  const allowedTypes = new Set(["Взятки", "Распасы", "Мизер", "Ручной ввод"]);
   wizardStep = 1;
-  el.gameType.value = "";
+  el.gameType.value = allowedTypes.has(requestedType) ? requestedType : "";
   resetMisereCards();
   syncTypeChoices();
-  setWizardStep(1);
+  setWizardStep(el.gameType.value ? firstStepAfterType() : 1);
   renderRoundRows();
   el.recordModal.classList.add("open");
   el.recordModal.setAttribute("aria-hidden", "false");
@@ -1485,6 +1576,12 @@ function closeRecordWizard() {
   el.recordModal.classList.remove("open");
   el.recordModal.setAttribute("aria-hidden", "true");
   showMessage("");
+}
+
+function selectPossibleGame(event) {
+  const card = event.target.closest("[data-record-type]");
+  if (!card || !el.possibleGamesList?.contains(card)) return;
+  openRecordWizard(card.dataset.recordType || "");
 }
 
 function isStandalonePwa() {
@@ -1875,7 +1972,7 @@ function addContract() {
   });
 
   if (declarerTricks >= contract) {
-    state.pool[declarer] += value;
+    applySuccessfulGameWrite(declarer, value);
     activeDefenders.forEach((index) => {
       if (roles[index] === "Вист") state.whists[index][declarer] += tricks[index] * whistPerTrick(contract);
       if (roles[index] === "Полвиста") state.whists[index][declarer] += ((10 - contract) * whistPerTrick(contract)) / 2;
@@ -1896,6 +1993,18 @@ function addContract() {
     pushHistory(`${contract} взяток: ${state.players[declarer]} ремиз ${under}.`);
     lastRecordOutcome = { type: "contract", contract, declarer, success: false, roles, tricks };
   }
+}
+
+function applySuccessfulGameWrite(player, value) {
+  if (currentConvention().gameWinWriteMode !== "mountain-first") {
+    state.pool[player] += value;
+    return;
+  }
+  const mountain = Math.max(0, Number(state.mountain[player] || 0));
+  const writeOff = Math.min(mountain, value);
+  if (writeOff > 0) state.mountain[player] = mountain - writeOff;
+  const poolRemainder = value - writeOff;
+  if (poolRemainder > 0) state.pool[player] += poolRemainder;
 }
 
 function applyRestingTalonWhists(declarer, contract, roles, tricks) {
@@ -1937,7 +2046,7 @@ function addMisere() {
     : "";
   validateTrickSum(true);
   if (tricks[declarer] === 0) {
-    state.pool[declarer] += 10;
+    applySuccessfulGameWrite(declarer, 10);
     pushHistory(`Мизер: ${state.players[declarer]} сыграл.${cardsSuffix}`);
     lastRecordOutcome = { type: "misere", success: true, roles: getRoles(), tricks };
   } else {
@@ -1955,11 +2064,27 @@ function addRaspass() {
   validateTrickSum(true);
   const contract = raspassContract();
   const price = raspassPrice();
-  active.forEach((index) => state.mountain[index] += tricks[index] * price);
+  if (currentConvention().raspassScoringMode === "rostov-whist") {
+    applyRostovRaspassWhists(active, tricks, price);
+  } else {
+    active.forEach((index) => state.mountain[index] += tricks[index] * price);
+  }
   applyRaspassZeroTricksPool(active, tricks);
   applyRestingRaspassMountain(roles, tricks, price);
   pushHistory(`Распасы ${format(contract)}.`);
   lastRecordOutcome = { type: "raspass", success: false, roles, tricks };
+}
+
+function applyRostovRaspassWhists(active, tricks, price) {
+  const minTricks = Math.min(...active.map((index) => Number(tricks[index] || 0)));
+  const winners = active.filter((index) => Number(tricks[index] || 0) === minTricks);
+  winners.forEach((winner) => {
+    active.forEach((opponent) => {
+      if (opponent === winner) return;
+      const diff = Number(tricks[opponent] || 0) - minTricks;
+      if (diff > 0) state.whists[winner][opponent] += diff * price;
+    });
+  });
 }
 
 function applyRaspassZeroTricksPool(active, tricks) {
@@ -1971,7 +2096,8 @@ function applyRaspassZeroTricksPool(active, tricks) {
 }
 
 function applyRestingRaspassMountain(roles, tricks, price) {
-  if (currentConvention().restingRaspassMountain !== "yes" || state.players.length < 4) return;
+  const convention = currentConvention();
+  if (convention.raspassTalonMode === "closed" || convention.restingRaspassMountain !== "yes" || state.players.length < 4) return;
   roles.forEach((role, index) => {
     if (role !== "Отдыхает") return;
     const talonTricks = clampNumber(tricks[index], 0, 2, 0);
@@ -2105,17 +2231,14 @@ function progressionSequence(value) {
 }
 
 function minimumContractForRaspassExit() {
-  const sequence = progressionSequence(currentConvention().raspassExitGameProgression);
-  if (currentConvention().raspassExitGameProgression === "none") return 6;
-  return sequence[Math.min(state.raspassLevel || 0, sequence.length - 1)] || 6;
+  return currentConvention().raspassProgression === "none" ? 6 : raspassContract();
 }
 
 function updateRaspassProgression(outcome) {
   if (!outcome || outcome.type === "manual") return;
   const convention = currentConvention();
   const hasRaspassProgression = convention.raspassProgression !== "none";
-  const hasExitProgression = convention.raspassExitGameProgression !== "none";
-  if (!hasRaspassProgression && !hasExitProgression) return;
+  if (!hasRaspassProgression) return;
 
   if (outcome.type === "raspass") {
     advanceRaspassLevel();
@@ -2134,7 +2257,11 @@ function advanceRaspassLevel() {
   const sequence = progressionSequence(currentConvention().raspassProgression);
   const next = (state.raspassLevel || 0) + 1;
   if (next < sequence.length) state.raspassLevel = next;
-  else state.raspassLevel = currentConvention().raspassProgressionStop === "until-game" ? sequence.length - 1 : 0;
+  else state.raspassLevel = raspassProgressionWaitsForGame() ? sequence.length - 1 : 0;
+}
+
+function raspassProgressionWaitsForGame() {
+  return currentConvention().raspassProgressionStop === "until-game";
 }
 
 function raspassExitSatisfied(outcome) {
@@ -2189,6 +2316,7 @@ function refresh() {
   el.gameCaption.hidden = false;
   renderPoolSheet(totals);
   renderScoreTable(totals);
+  renderPossibleGames();
   renderHistory();
   updateHistoryButtons();
   updateGameControls();
@@ -2199,6 +2327,108 @@ function refresh() {
     showMessage("Пуля закрыта. Можно добавить следующую пулю.");
   }
   wasFullyClosed = actuallyFullyClosed;
+}
+
+function renderPossibleGames() {
+  if (!el.possibleGamesCard || !el.possibleGamesList) return;
+  if (!gameStarted()) {
+    el.possibleGamesCard.hidden = true;
+    el.possibleGamesList.replaceChildren();
+    return;
+  }
+
+  el.possibleGamesCard.hidden = false;
+  el.possibleGamesList.replaceChildren(...buildPossibleGames().map(createPossibleGameCard));
+}
+
+function buildPossibleGames() {
+  const convention = currentConvention();
+  const hasRaspassProgression = convention.raspassProgression !== "none";
+  const raspassProgression = hasRaspassProgression
+    ? progressionSequence(convention.raspassProgression).map(format).join("-")
+    : "без прогрессии";
+  const exitMinimum = minimumContractForRaspassExit();
+  const cards = [
+    {
+      type: "Взятки",
+      mark: "♠",
+      title: "Игра",
+      detail: "Контракты 6-10",
+      chips: [
+        state.players.length === 3 ? "вистуют оба" : "вист / пас / полвиста",
+        convention.underThreeLoss ? "уход без 3 доступен" : "без ухода без 3",
+        hasRaspassProgression ? `после распасов от ${format(exitMinimum)}` : "обычная запись",
+      ],
+    },
+    {
+      type: "Распасы",
+      mark: "♦",
+      title: "Распасы",
+      detail: `Сейчас ${format(raspassContract())}`,
+      chips: [
+        `прогрессия ${raspassProgression}`,
+        raspassScoringLabel(convention),
+        convention.raspassZeroTricksPool ? "0 взяток в пулю" : "без записи за 0",
+      ],
+    },
+    {
+      type: "Мизер",
+      mark: "♣",
+      title: "Мизер",
+      detail: "Не взять ни одной",
+      chips: [
+        convention.misereExitsRaspass ? "выводит из распасов" : "не сбрасывает распасы",
+        "можно отметить карты",
+      ],
+    },
+  ];
+
+  if (convention.underThreeLoss) {
+    cards.push({
+      type: "Взятки",
+      mark: "♥",
+      title: "Уход без 3",
+      detail: "Быстрый ремиз",
+      chips: ["кнопка у играющего", "контракт выбирается в записи"],
+    });
+  }
+
+  return cards;
+}
+
+function raspassScoringLabel(convention) {
+  if (convention.raspassScoringMode === "rostov-whist") return "Ростов: висты минимуму";
+  return "запись в гору";
+}
+
+function createPossibleGameCard(card) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "possible-game-card";
+  button.dataset.recordType = card.type;
+  button.dataset.mark = card.mark;
+
+  const mark = document.createElement("span");
+  mark.className = "possible-game-mark";
+  mark.textContent = card.mark;
+
+  const title = document.createElement("strong");
+  title.textContent = card.title;
+
+  const detail = document.createElement("span");
+  detail.className = "possible-game-detail";
+  detail.textContent = card.detail;
+
+  const chips = document.createElement("span");
+  chips.className = "possible-game-chips";
+  card.chips.filter(Boolean).forEach((chipText) => {
+    const chip = document.createElement("span");
+    chip.textContent = chipText;
+    chips.appendChild(chip);
+  });
+
+  button.append(mark, title, detail, chips);
+  return button;
 }
 
 function displayTotals(actualTotals) {

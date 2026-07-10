@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/pwa-192.png">
-  <link rel="stylesheet" href="styles.css?v=55">
+  <link rel="stylesheet" href="styles.css?v=59">
 </head>
 <body>
   <header class="app-header">
@@ -133,6 +133,10 @@
               </thead>
               <tbody id="scoreBody"></tbody>
             </table>
+          </div>
+          <div id="possibleGamesCard" class="possible-games-card" hidden>
+            <h2>Возможные игры</h2>
+            <div id="possibleGamesList" class="possible-games-list" aria-label="Возможные игры"></div>
           </div>
           <div class="history-card">
             <h2 class="history-title"><span>Журнал</span><span id="statusTitle">Игра до 20</span><span id="gameCaption">Пуля: Сочи / 3 игрока</span></h2>
@@ -272,6 +276,14 @@
       </div>
 <div class="convention-panel-body">
             <label>
+              <span>Конвенция<small>Выберите стандартную конвенцию или свою сохранённую настройку.</small></span>
+              <select id="conventionModalSelect">
+                <option>Сочи</option>
+                <option>Питер</option>
+                <option>Ростов</option>
+              </select>
+            </label>
+            <label>
               <span>Название</span>
               <input id="conventionName" type="text" value="Сочи">
             </label>
@@ -288,6 +300,13 @@
             <label>
               <span>Пересчёт единицы горы<small>Сколько вистов даёт единица разницы в горе при итоговом балансе. Обычно 10, включая Питер и Сочи.</small></span>
               <input data-convention-setting="mountainUnit" type="number" min="0" step="0.5">
+            </label>
+            <label>
+              <span>Запись сыгранной игры<small>Обычно очки идут в пулю; в Ростове сыгранная игра сначала списывает гору, остаток идёт в пулю.</small></span>
+              <select data-convention-setting="gameWinWriteMode">
+                <option value="pool">В пулю</option>
+                <option value="mountain-first">Сначала списать гору</option>
+              </select>
             </label>
             <label>
               <span>Мизер считается игрой<small>Сыгранный мизер выводит из прогрессии распасов как обычная сыгранная игра.</small></span>
@@ -361,6 +380,13 @@
             </label>
             <div class="settings-head"><span>Распасы</span></div>
             <label>
+              <span>Запись распасов<small>Обычно взятки пишутся в гору; в Ростове взявший меньше всех пишет висты на остальных.</small></span>
+              <select data-convention-setting="raspassScoringMode">
+                <option value="mountain">В гору за взятки</option>
+                <option value="rostov-whist">Ростов: минимум пишет висты</option>
+              </select>
+            </label>
+            <label>
               <span>Прогрессия распасов<small>Последовательность уровня распасов: 6 даёт стоимость шестёрной игры, 7 — семерной, 8 — восьмерной.</small></span>
               <select data-convention-setting="raspassProgression">
                 <option value="none">Без прогрессии</option>
@@ -370,10 +396,9 @@
               </select>
             </label>
             <label>
-              <span>Остановка прогрессии<small>Круговая всегда двигается дальше; круговая с паузой ждёт сыгранную игру; до сыгранной игры держит максимум до выхода.</small></span>
+              <span>Остановка прогрессии<small>Круговая после максимума возвращается к началу; до сыгранной игры держит максимум до выхода.</small></span>
               <select data-convention-setting="raspassProgressionStop">
                 <option value="cycle">Круговая, всегда продолжать</option>
-                <option value="cycle-until-game">Круговая, пауза до сыгранной игры</option>
                 <option value="until-game">До сыгранной игры</option>
               </select>
             </label>
@@ -385,15 +410,6 @@
                 <option value="both-whist-together">Сыгранная игра | Вистуют оба без штрафа | Висты на двоих</option>
                 <option value="both-whist-each">Сыгранная игра | Вистуют оба без штрафа | Висты на каждого</option>
                 <option value="half-whist">Сыгранная игра с полувистом</option>
-              </select>
-            </label>
-            <label>
-              <span>Прогрессия игр для выхода<small>Минимальный контракт, который может вывести из распасов.</small></span>
-              <select data-convention-setting="raspassExitGameProgression">
-                <option value="none">Без прогрессии</option>
-                <option value="6-7-8">6-7-8</option>
-                <option value="6-7-7-8">6-7-7-8</option>
-                <option value="6-7-8-9">6-7-8-9</option>
               </select>
             </label>
             <label>
@@ -653,7 +669,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="qr-creator.js?v=55"></script>
-  <script src="app.js?v=55"></script>
+  <script src="qr-creator.js?v=57"></script>
+  <script src="app.js?v=59"></script>
 </body>
 </html>
