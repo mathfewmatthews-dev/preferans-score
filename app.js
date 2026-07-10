@@ -2357,8 +2357,10 @@ function buildPossibleGames() {
       detail: `Контракты ${format(availableContractMin)}-10`,
       chips: [
         state.players.length === 3 ? "вист / пас" : "вист / пас / полвиста",
+        whistMinimumHint(availableContractMin),
+        whistResponsibilityLabel(convention),
+        whistRequirementHint(convention),
         convention.underThreeLoss ? "уход без трёх доступен" : "без ухода без трёх",
-        raspassExitIsActive ? raspassExitConditionLabel(convention) : "обычная запись",
       ],
     },
     {
@@ -2370,6 +2372,7 @@ function buildPossibleGames() {
         hasRaspassProgression ? `прогрессия ${raspassProgression}` : raspassProgression,
         raspassScoringLabel(convention),
         convention.raspassZeroTricksPool ? "за 0 взяток очки в пулю" : "без записи за 0 взяток",
+        raspassExitIsActive ? raspassExitConditionLabel(convention) : "",
       ],
     },
     {
@@ -2384,17 +2387,21 @@ function buildPossibleGames() {
     },
   ];
 
-  if (convention.underThreeLoss) {
-    cards.push({
-      type: "Взятки",
-      mark: "♥",
-      title: "Уход без трёх",
-      detail: "Быстрый ремиз",
-      chips: ["кнопка у играющего", "контракт выбирается в записи"],
-    });
-  }
-
   return cards;
+}
+
+function whistMinimumHint(contract) {
+  const required = requiredWhistTricks(contract);
+  if (!required) return "без обязательного минимума";
+  return `минимум ${format(required)} вз. на ${format(contract)}`;
+}
+
+function whistResponsibilityLabel(convention) {
+  return convention.whistResponsibility === "full" ? "ответственный вист" : "полуответственный вист";
+}
+
+function whistRequirementHint(convention) {
+  return convention.whistRequirementMode === "each" ? "минимум каждому" : "минимум на двоих";
 }
 
 function raspassExitConditionLabel(convention) {
