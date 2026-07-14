@@ -316,3 +316,79 @@ test("possible-game whists show gentleman or greedy declarer-remiz mode", async 
   await expect(page.locator('[data-record-type="Взятки"] .possible-game-section'))
     .toContainText("жлобский");
 });
+
+test("closed-player markers are centered in a dedicated zone on every classic side", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: DESKTOP_HEIGHT });
+  await openCleanApp(page);
+  await startGame(page, "Сочи", 4);
+  for (let player = 0; player < 4; player += 1) await recordManual(page, player, "Пуля", 20);
+
+  const markers = page.locator("#poolSheet .pool-closed-marker");
+  await expect(markers).toHaveCount(4);
+  const centers = await markers.evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => {
+    const marker = node as SVGGraphicsElement;
+    const box = marker.getBBox();
+    return [marker.getAttribute("data-side"), { x: box.x + box.width / 2, y: box.y + box.height / 2 }];
+  })));
+  const expected = {
+    top: { x: 690, y: 225 },
+    right: { x: 775, y: 310 },
+    bottom: { x: 690, y: 775 },
+    left: { x: 225, y: 690 }
+  };
+  for (const [side, target] of Object.entries(expected)) {
+    expect(Math.abs(centers[side].x - target.x), side).toBeLessThanOrEqual(3);
+    expect(Math.abs(centers[side].y - target.y), side).toBeLessThanOrEqual(3);
+  }
+});
+
+for (const viewport of [
+  { width: 3440, height: 900 },
+  { width: 2048, height: 1200 },
+  { width: 1920, height: 700 },
+  { width: 1440, height: 900 },
+  { width: 1180, height: 700 },
+  { width: 390, height: 844 }
+]) {
+  test(`completed pool keeps its add action accessible at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openCleanApp(page);
+    await startGame(page, "Сочи", 3);
+    for (let player = 0; player < 3; player += 1) await recordManual(page, player, "Пуля", 20);
+
+    const addPool = page.locator("#addPoolButton");
+    await expect(addPool).toBeVisible();
+    const centerState = await page.locator("#poolSheet").evaluate((svg) => {
+      const circle = svg.querySelector<SVGCircleElement>(".center-pool.closed")!;
+      const value = svg.querySelector<SVGTextElement>(".center-value")!;
+      const label = svg.querySelector<SVGTextElement>(".center-label")!;
+      return {
+        fill: getComputedStyle(circle).fill,
+        label: label.textContent,
+        value: value.textContent,
+        valueFill: getComputedStyle(value).fill
+      };
+    });
+    expect(centerState.fill).toBe("rgb(73, 168, 79)");
+    expect(centerState.value).toBe("20");
+    expect(centerState.label).toBe("личная");
+    expect(centerState.valueFill).not.toBe(centerState.fill);
+
+    if (viewport.width >= 1181) {
+      const geometry = await page.evaluate(() => {
+        const button = document.querySelector<HTMLElement>("#addPoolButton")!.getBoundingClientRect();
+        const card = document.querySelector<HTMLElement>(".pool-card")!.getBoundingClientRect();
+        return { buttonBottom: button.bottom, cardBottom: card.bottom, viewportBottom: window.innerHeight };
+      });
+      expect(geometry.buttonBottom).toBeLessThanOrEqual(geometry.cardBottom + 1);
+      expect(geometry.buttonBottom).toBeLessThanOrEqual(geometry.viewportBottom + 1);
+    } else {
+      await addPool.scrollIntoViewIfNeeded();
+      await expect(addPool).toBeInViewport();
+    }
+
+    await addPool.click();
+    await expect(page.locator("#addPoolModal")).toHaveClass(/open/);
+    await page.locator("#cancelAddPoolButton").click();
+  });
+}

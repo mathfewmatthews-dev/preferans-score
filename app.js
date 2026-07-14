@@ -329,7 +329,9 @@ function initialize() {
   registerServiceWorker();
   setupRemoteSync();
   const urlGameId = getUrlGameId();
-  autosaveRestoreStatus = urlGameId ? "" : restoreAutosavedGame();
+  autosaveRestoreStatus = urlGameId && remoteAvailable
+    ? ""
+    : restoreAutosavedGame(urlGameId);
   renderConventionOptions();
   syncControlsFromState();
   renderConventionPanel();
@@ -338,7 +340,7 @@ function initialize() {
   hydrateSelectors();
   renderRoundRows();
   refresh();
-  if (urlGameId) loadRemoteGame(urlGameId);
+  if (urlGameId && autosaveRestoreStatus !== "restored") loadRemoteGame(urlGameId);
   if (autosaveRestoreStatus === "failed") showMessage("Не удалось восстановить автосохранение.");
 }
 
@@ -534,12 +536,13 @@ function clearAutosavedGame() {
   }
 }
 
-function restoreAutosavedGame() {
+function restoreAutosavedGame(expectedGameId = null) {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if (!raw) return "";
     const parsed = JSON.parse(raw);
     if (!parsed?.started || !parsed.state) return "";
+    if (expectedGameId && normalizeGameId(parsed.state.gameId) !== expectedGameId) return "";
     Object.assign(state, normalizeState(parsed.state));
     ensureScoreLog();
     document.body.classList.add("game-started");
@@ -2345,16 +2348,28 @@ function addManual() {
 
 function redistributePoolOverflow() {
   if (state.poolClosingMode !== "each") return;
-  let guard = 0;
-  while (guard < 100) {
-    guard += 1;
+  let guard = state.players.length * 2;
+  while (guard > 0) {
+    guard -= 1;
     const source = state.pool.findIndex((value) => Number(value || 0) > state.poolTarget);
     if (source < 0) return;
-    const excess = Number(state.pool[source] || 0) - state.poolTarget;
+    let excess = Number(state.pool[source] || 0) - state.poolTarget;
     state.pool[source] = state.poolTarget;
-    const recipient = overflowRecipient(source);
-    if (recipient < 0) return;
-    state.pool[recipient] += excess;
+
+    while (excess > 0) {
+      const recipient = overflowRecipient(source);
+      if (recipient < 0) break;
+      const recipientRoom = Math.max(0, state.poolTarget - Number(state.pool[recipient] || 0));
+      const help = Math.min(excess, recipientRoom);
+      if (help <= 0) break;
+      state.pool[recipient] += help;
+      state.whists[source][recipient] += help * 10;
+      excess -= help;
+    }
+
+    if (excess > 0) {
+      state.mountain[source] = Number(state.mountain[source] || 0) - excess;
+    }
   }
 }
 
@@ -3151,7 +3166,10 @@ function drawClassicSlot(svg, slot) {
   const total = slot.total;
   Object.assign(cfg, classicSlotGeometry(slot.side, classicScoreMetrics(total)));
 
-  const whistGroup = node("g", {});
+  const whistGroup = node("g", {
+    class: "whist-summary",
+    "data-player-index": total.index,
+  });
   if (cfg.rotate) whistGroup.setAttribute("transform", `rotate(${cfg.rotate} ${cfg.cx} ${cfg.cy})`);
   svg.appendChild(whistGroup);
   drawWhistSummary(whistGroup, cfg, total);
@@ -3250,22 +3268,33 @@ function slotConfig(side) {
 function drawPoolMountainTracks(svg, side, total) {
   if (!gameStarted()) return;
   const cfg = trackConfig(side);
-  const group = node("g", {});
-  const poolLine = drawPlayerTrackLine(group, cfg.pool, "▶", scoreHistory("pool", total.index));
-  const mountainLine = drawPlayerTrackLine(group, cfg.mountain, "△", scoreHistory("mountain", total.index));
+  const group = node("g", {
+    class: "player-tracks",
+    "data-player-index": total.index,
+  });
+  const poolLine = drawPlayerTrackLine(group, cfg.pool, "▶", scoreHistory("pool", total.index), "pool-value-track");
+  const mountainLine = drawPlayerTrackLine(group, cfg.mountain, "△", scoreHistory("mountain", total.index), "mountain-track");
+  if (state.poolClosingMode === "each" && total.closed) {
+    drawClosedPoolMarker(group, cfg.closed, side);
+  }
   svg.appendChild(group);
   centerPoolTrackInCorridor(svg, poolLine, side);
   centerSvgTextOnPoint(mountainLine, cfg.mountain.x, cfg.mountain.y);
-  if (state.poolClosingMode === "each" && total.closed) {
-    svg.appendChild(text(cfg.closed.x, cfg.closed.y, "закрыл", "closed-text", "middle"));
-  }
 }
 
-function drawPlayerTrackLine(group, cfg, label, values) {
-  const line = sequenceText(cfg.x, cfg.y, label, values, "pool-track sector-track", cfg.anchor || "start");
+function drawPlayerTrackLine(group, cfg, label, values, semanticClass) {
+  const line = sequenceText(cfg.x, cfg.y, label, values, `pool-track sector-track ${semanticClass}`, cfg.anchor || "start");
   if (cfg.rotate) line.setAttribute("transform", `rotate(${cfg.rotate} ${cfg.x} ${cfg.y})`);
   group.appendChild(line);
   return line;
+}
+
+function drawClosedPoolMarker(group, cfg, side) {
+  const marker = text(cfg.x, cfg.y, "закрыл >>>", "closed-text pool-closed-marker", "middle");
+  marker.setAttribute("data-side", side);
+  marker.setAttribute("dominant-baseline", "middle");
+  if (cfg.rotate) marker.setAttribute("transform", `rotate(${cfg.rotate} ${cfg.x} ${cfg.y})`);
+  group.appendChild(marker);
 }
 
 function centerPoolTrackInCorridor(svg, line, side) {
@@ -3317,22 +3346,22 @@ function trackConfig(side) {
   if (side === "top") return {
     pool: { x: 270, y: 225, anchor: "start" },
     mountain: { x: g.center, y: g.center - g.mountainDistance, anchor: "middle" },
-    closed: { x: 706, y: 326 },
+    closed: { x: 690, y: 225 },
   };
   if (side === "right") return {
     pool: { x: 775, y: 730, rotate: -90, anchor: "start" },
     mountain: { x: g.center + g.mountainDistance, y: g.center, rotate: -90, anchor: "middle" },
-    closed: { x: 684, y: 706 },
+    closed: { x: 775, y: 310, rotate: -90 },
   };
   if (side === "bottom") return {
     pool: { x: 270, y: 775, anchor: "start" },
     mountain: { x: g.center, y: g.center + g.mountainDistance, anchor: "middle" },
-    closed: { x: 706, y: 668 },
+    closed: { x: 690, y: 775 },
   };
   return {
     pool: { x: 225, y: 270, rotate: 90, anchor: "start" },
     mountain: { x: g.center - g.mountainDistance, y: g.center, rotate: 90, anchor: "middle" },
-    closed: { x: 316, y: 706 },
+    closed: { x: 225, y: 690, rotate: 90 },
   };
 }
 function drawEmptySlot(svg, side) {
@@ -3387,7 +3416,7 @@ function markLastChangedValues(values, changed) {
   return values.map((value, index) => index === values.length - 1 ? { value, changed: true } : value);
 }
 
-function sequenceText(x, y, label, values, className, anchor = "start", suffix = "") {
+function sequenceText(x, y, label, values, className, anchor = "start") {
   const item = node("text", { x, y, class: className, "text-anchor": anchor, "dominant-baseline": "middle" });
   if (label) {
     const labelSpan = node("tspan", {});
@@ -3401,7 +3430,7 @@ function sequenceText(x, y, label, values, className, anchor = "start", suffix =
       changed ? "last-change" : "",
     ].filter(Boolean).join(" ");
     const part = node("tspan", classes ? { class: classes } : {});
-    part.textContent = `${formatTrackValue(value)}${index < values.length - 1 ? ". " : suffix}`;
+    part.textContent = `${formatTrackValue(value)}${index < values.length - 1 ? ". " : ""}`;
     item.appendChild(part);
   });
   return item;
@@ -3456,7 +3485,10 @@ function drawWhistGrid(group, cfg, opponents, hasWrittenWhists) {
     const cellX = startX + col * colWidth + colWidth / 2;
     const cellY = startY + rowHeight / 2;
     const textNode = whistCellText(cellX, cellY, values, className);
-    if (textNode) group.appendChild(textNode);
+    if (textNode) {
+      if (!column.missing) textNode.setAttribute("data-target-index", column.opponent.index);
+      group.appendChild(textNode);
+    }
   });
 }
 

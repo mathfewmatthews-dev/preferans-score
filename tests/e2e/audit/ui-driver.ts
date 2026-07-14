@@ -19,6 +19,15 @@ export async function startGame(page: Page, convention = "Сочи", playerCount
   await expect(page.locator("body")).toHaveClass(/game-started/);
 }
 
+export async function clickHeaderAction(page: Page, selector: string) {
+  const action = page.locator(selector);
+  if (!(await action.isVisible())) {
+    await page.locator("#mobileMenuButton").click();
+    await expect(action).toBeVisible();
+  }
+  await action.click();
+}
+
 async function openRecord(page: Page, type: string) {
   await page.locator("#floatingRecordButton").click();
   await expect(page.locator("#recordModal")).toHaveClass(/open/);

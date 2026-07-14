@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openCleanApp, recordManual, snapshot, startGame } from "./ui-driver";
+import { clickHeaderAction, openCleanApp, recordManual, snapshot, startGame } from "./ui-driver";
 
 function category(type: string) { test.info().annotations.push({ type: "auditCategory", description: type }); }
 
@@ -24,12 +24,12 @@ test("экспорт и импорт возвращают расчётное с�
   await recordManual(page, 1, "Висты", 12, 0);
   const expected = await snapshot(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.locator("#saveButton").click();
+  await clickHeaderAction(page, "#saveButton");
   const download = await downloadPromise;
   const file = await download.path();
   expect(file).toBeTruthy();
   page.once("dialog", dialog => dialog.accept());
-  await page.locator("#newGameButton").click();
+  await clickHeaderAction(page, "#newGameButton");
   await expect(page.locator("body")).not.toHaveClass(/game-started/);
   await page.locator("#loadInput").setInputFiles(file!);
   await expect(page.locator("body")).toHaveClass(/game-started/);
@@ -79,14 +79,14 @@ test("ручной подсчёт, возможные игры и текстов
   await expect(page.locator("#scoreConfirmModal")).toHaveClass(/open/);
   await page.locator("#confirmScoreCalculationButton").click();
   expect((await snapshot(page)).scoresCalculated).toBe(true);
-  await page.locator("#reportButton").click();
+  await clickHeaderAction(page, "#reportButton");
   await expect(page.locator("#message")).toContainText("Отчёт");
 });
 
 test("все игровые настройки конвенции доступны и создают пользовательский пресет", async ({ page }) => {
   category("record-wizard");
   await page.locator("#playerCount").selectOption("4");
-  await page.locator("#conventionButton").click();
+  await clickHeaderAction(page, "#conventionButton");
   const fields = page.locator("[data-convention-setting]");
   expect(await fields.count()).toBe(24);
   for (const pattern of ["6", "6-7", "6-7-8", "cycle-6-7-8", "6-7-7-8", "6-7-8-9"]) {

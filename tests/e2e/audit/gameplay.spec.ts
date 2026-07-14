@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contractDelta, conventions, gameValue } from "./oracle";
-import { openCleanApp, recordContract, recordManual, recordMisere, recordRaspass, snapshot, startGame } from "./ui-driver";
+import { clickHeaderAction, openCleanApp, recordContract, recordManual, recordMisere, recordRaspass, snapshot, startGame } from "./ui-driver";
 
 function category(type: string) { test.info().annotations.push({ type: "auditCategory", description: type }); }
 
@@ -27,11 +27,11 @@ test("Сочи: контракты 6–10, журнал и undo/redo", async ({ 
       expect(actual.mountain).toEqual(expected.mountain);
       expect(actual.whists).toEqual(expected.whists);
       await expect(page.locator("#historyList li")).toHaveCount(1);
-      await page.locator("#undoButton").click();
+      await clickHeaderAction(page, "#undoButton");
       expect((await snapshot(page)).history).toHaveLength(0);
-      await page.locator("#redoButton").click();
+      await clickHeaderAction(page, "#redoButton");
       expect((await snapshot(page)).history).toHaveLength(1);
-      await page.locator("#undoButton").click();
+      await clickHeaderAction(page, "#undoButton");
       await expect.poll(async () => (await snapshot(page)).history.length).toBe(0);
       await expect.poll(async () => (await snapshot(page)).pool).toEqual([0, 0, 0]);
     }
@@ -48,7 +48,7 @@ test("Питер: жлобский вист, ремиз и прогрессия 
   expect(actual.mountain).toEqual(expected.mountain);
   expect(actual.whists).toEqual(expected.whists);
 
-  await page.locator("#undoButton").click();
+  await clickHeaderAction(page, "#undoButton");
   await recordRaspass(page, [0, 3, 7]);
   actual = await snapshot(page);
   expect(actual.pool).toEqual([gameValue(6), 0, 0]);
@@ -69,8 +69,8 @@ test("Ростов: гора списывается перед пулей и р�
   let actual = await snapshot(page);
   expect(actual.mountain[0]).toBe(0);
   expect(actual.pool[0]).toBe(1);
-  await page.locator("#undoButton").click();
-  await page.locator("#undoButton").click();
+  await clickHeaderAction(page, "#undoButton");
+  await clickHeaderAction(page, "#undoButton");
   await recordRaspass(page, [0, 3, 7]);
   actual = await snapshot(page);
   expect(actual.mountain).toEqual([0, 0, 0]);
@@ -84,7 +84,7 @@ test("Мизер: успешная запись, ремиз и выход по �
   let actual = await snapshot(page);
   expect(actual.pool[0]).toBe(10);
   expect(actual.history.at(-1)).toContain("Мизер");
-  await page.locator("#undoButton").click();
+  await clickHeaderAction(page, "#undoButton");
   await recordMisere(page, 0, [2, 4, 4]);
   actual = await snapshot(page);
   expect(actual.mountain[0]).toBe(20);
@@ -92,7 +92,7 @@ test("Мизер: успешная запись, ремиз и выход по �
 
 test("Своя конвенция: параметры создаются через UI и влияют на расчёт", async ({ page }) => {
   category("calculations");
-  await page.locator("#conventionButton").click();
+  await clickHeaderAction(page, "#conventionButton");
   await page.locator('[data-convention-setting="gamePenaltyMultiplier"]').fill("2");
   await page.locator('[data-convention-setting="underThreeLoss"]').check();
   await page.locator('[data-convention-setting="raspassProgression"]').selectOption("cycle-6-7-8");
@@ -128,7 +128,7 @@ test("Составы 3/4/5 игроков и отдыхающий", async ({ pag
 
   await openCleanApp(page);
   await page.locator("#playerCount").selectOption("4");
-  await page.locator("#conventionButton").click();
+  await clickHeaderAction(page, "#conventionButton");
   await page.locator('[data-convention-setting="restingTalonPool"]').check();
   await page.locator("#conventionName").fill("Отдыхающий");
   await page.locator("#closeConventionButton").click();

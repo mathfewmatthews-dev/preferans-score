@@ -922,6 +922,13 @@ body.game-started .pool-sheet-wrap {
   font-weight: 800;
 }
 
+.pool-closed-marker {
+  font-size: 18px;
+  letter-spacing: 1px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
 .pool-track {
   font-size: 40px;
   fill: var(--ink);
@@ -6980,5 +6987,44 @@ html {
     overflow-y: auto !important;
     overscroll-behavior-y: contain;
     scrollbar-gutter: stable;
+  }
+}
+
+/* Final closed-pool and desktop action-row corrections. */
+.pool-sheet .center-pool.closed {
+  fill: var(--green) !important;
+  stroke: var(--green-dark) !important;
+}
+
+.pool-sheet .center-pool.closed + .center-value,
+.pool-sheet .center-pool.closed ~ .center-label {
+  fill: var(--button-text) !important;
+}
+
+.pool-actions:not(:has(> button:not([hidden]))) {
+  display: none !important;
+}
+
+@media (min-width: 1181px) {
+  body.game-started .pool-card {
+    overflow: hidden !important;
+  }
+
+  body.game-started .pool-card > .pool-sheet-wrap {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    aspect-ratio: 1 / 1;
+    margin: var(--pool-progress-space) auto 0 !important;
+  }
+
+  body.game-started .pool-card > .pool-actions {
+    flex: 0 0 auto !important;
+    width: 100%;
+    margin-top: 12px;
   }
 }
