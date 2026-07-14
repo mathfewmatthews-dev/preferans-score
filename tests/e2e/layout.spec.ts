@@ -303,3 +303,16 @@ test("desktop keeps the outer gutters symmetric and scrolls only the long histor
   expect(geometry.historyScrollTop).toBeGreaterThan(0);
   expect(Math.abs(geometry.historyBottom - geometry.poolBottom)).toBeLessThanOrEqual(2);
 });
+
+test("possible-game whists show gentleman or greedy declarer-remiz mode", async ({ page }) => {
+  await openCleanApp(page);
+  await startGame(page, "Сочи");
+  const whists = page.locator('[data-record-type="Взятки"] .possible-game-section');
+  await expect(whists).toContainText("джентльменский");
+  await expect(whists).not.toContainText("жлобский");
+
+  await openCleanApp(page);
+  await startGame(page, "Питер");
+  await expect(page.locator('[data-record-type="Взятки"] .possible-game-section'))
+    .toContainText("жлобский");
+});

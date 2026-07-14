@@ -2588,6 +2588,7 @@ function buildPossibleGames() {
           title: "Висты",
           chips: [
             state.players.length === 3 ? "вист / пас" : "вист / пас / полвиста",
+            declarerRemizWhistLabel(convention),
             whistMinimumHint(availableContractMin),
             whistResponsibilityLabel(convention),
             whistRequirementHint(convention),
@@ -2628,6 +2629,10 @@ function whistMinimumHint(contract) {
   const required = requiredWhistTricks(contract);
   if (!required) return "без обязательного минимума";
   return `минимум ${format(required)} вз. на ${format(contract)}`;
+}
+
+function declarerRemizWhistLabel(convention) {
+  return convention.declarerRemizWhistMode === "greedy" ? "жлобский" : "джентльменский";
 }
 
 function whistResponsibilityLabel(convention) {
