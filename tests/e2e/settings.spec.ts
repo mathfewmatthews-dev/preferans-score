@@ -30,6 +30,9 @@ async function cssVariable(page: Page, name: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
+  if (await page.locator("#mobileMenuButton").isVisible()) {
+    await page.locator("#mobileMenuButton").click();
+  }
   await page.locator("#settingsButton").click();
   await expect(page.locator("#colorSettingsDrawer")).toHaveClass(/open/);
 });

@@ -349,7 +349,7 @@ function bindEvents() {
     if (action) window.setTimeout(closeMobileMenu, 0);
   });
   window.addEventListener("resize", () => {
-    if (window.matchMedia("(min-width: 721px)").matches) closeMobileMenu();
+    if (window.matchMedia("(min-width: 1501px)").matches) closeMobileMenu();
   });
   el.playerCount.addEventListener("change", updateSetupPlayerCount);
   el.convention.addEventListener("change", selectConvention);

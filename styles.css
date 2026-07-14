@@ -6719,3 +6719,266 @@ input[type="file"]::file-selector-button {
     min-width: min(300px, 82vw) !important;
   }
 }
+
+/* Desktop geometry: align fixed headers with their scrollable content. */
+.settings-drawer-panel,
+.rules-panel,
+.convention-settings-panel,
+#recordModal .modal-panel {
+  --modal-content-inline: 22px;
+}
+
+.settings-drawer-panel {
+  --modal-content-inline: 20px;
+}
+
+.settings-drawer-panel > .modal-head,
+.rules-panel > .modal-head,
+.convention-settings-panel > .modal-head,
+#recordModal .modal-panel > .modal-head {
+  padding-left: var(--modal-content-inline) !important;
+  padding-right: 0 !important;
+}
+
+/* The late generic input rule must not inset native range tracks. */
+.backdrop-opacity-field input[type="range"] {
+  box-sizing: border-box !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: 0 !important;
+  background-color: var(--ui-surface) !important;
+  background-image: linear-gradient(
+    to right,
+    var(--accent) 0,
+    var(--accent) var(--range-progress),
+    var(--line) var(--range-progress),
+    var(--line) 100%
+  ) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: calc(100% - var(--range-thumb-size)) 6px !important;
+}
+
+@media (min-width: 1181px) {
+  body.game-started .data-row > .history-card {
+    flex: 1 0 320px !important;
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  body.game-started .data-row > .history-card:has(#historyList:empty) {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+  }
+
+  body.game-started .history-card #historyList {
+    flex: 0 0 auto;
+  }
+
+  body.game-started .history-card #historyList:empty {
+    flex: 1 1 auto;
+    min-height: 0 !important;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1919px) {
+  body.game-started .score-area {
+    grid-template-columns: minmax(0, 1fr) clamp(560px, 42vw, 760px) !important;
+  }
+
+  body.game-started .possible-games-list {
+    overflow-x: auto !important;
+  }
+
+  body.game-started .possible-game-card {
+    flex: 0 0 300px !important;
+    width: 300px !important;
+    min-width: 300px !important;
+  }
+}
+
+@media (min-width: 1920px) {
+  body.game-started .score-area {
+    grid-template-columns: minmax(0, 1fr) clamp(960px, 38vw, 1320px) !important;
+  }
+
+  body.game-started .possible-games-list {
+    overflow-x: hidden !important;
+  }
+
+  body.game-started .possible-game-card {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-drawer-panel,
+  .rules-panel,
+  .convention-settings-panel,
+  #recordModal .modal-panel {
+    --modal-content-inline: 16px;
+  }
+}
+
+/* Collapse the full action row before it starts wrapping on medium screens. */
+@media (min-width: 721px) and (max-width: 1500px) {
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 18;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 46px !important;
+    align-items: center !important;
+    gap: 12px;
+    width: 100%;
+    min-height: 70px;
+    padding: 12px 20px !important;
+    overflow: visible;
+  }
+
+  .mobile-menu-button {
+    display: inline-flex !important;
+    justify-self: end;
+    flex: 0 0 46px;
+    gap: 4px;
+  }
+
+  .app-header .header-actions {
+    grid-column: 1 / -1;
+    display: none !important;
+    width: 100%;
+    min-width: 0;
+    margin-top: 4px;
+    padding: 12px;
+    background: var(--ui-surface) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 16px;
+    box-shadow: var(--ui-shadow-card) !important;
+  }
+
+  .app-header.menu-open .header-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .app-header .header-actions > button,
+  .app-header .header-actions > label,
+  .app-header .game-actions > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .app-header .game-actions,
+  body.game-started .app-header .game-actions {
+    display: grid !important;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+  }
+
+  body:not(.game-started) .app-header .game-actions {
+    display: none !important;
+  }
+
+  .app-header .icon-button,
+  #undoButton,
+  #redoButton {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 46px !important;
+    min-height: 46px !important;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .app-header.menu-open .header-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header .game-actions,
+  body.game-started .app-header .game-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  .floating-record-button,
+  body.game-started .floating-record-button,
+  .floating-share-button,
+  body.game-started .floating-share-button {
+    bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .floating-record-button,
+  body.game-started .floating-record-button {
+    right: calc(16px + env(safe-area-inset-right)) !important;
+  }
+
+  .floating-share-button,
+  body.game-started .floating-share-button {
+    right: calc(82px + env(safe-area-inset-right)) !important;
+  }
+}
+
+/* Final overflow ownership: viewport on stacked layouts, history on desktop. */
+html {
+  scrollbar-gutter: auto !important;
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  html,
+  body,
+  body.game-started {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  body.game-started .shell,
+  body.game-started .workspace,
+  body.game-started .score-area,
+  body.game-started .data-row {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.game-started .data-row {
+    padding-right: 0 !important;
+  }
+}
+
+@media (min-width: 1181px) {
+  body.game-started .data-row {
+    padding-right: 0 !important;
+    overflow: hidden !important;
+    scrollbar-gutter: auto !important;
+  }
+
+  body.game-started .data-row > .history-card,
+  body.game-started .data-row > .history-card:has(#historyList:empty) {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.game-started .history-card #historyList,
+  body.game-started .history-card #historyList:empty {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding-right: 8px;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+  }
+}

@@ -7,5 +7,9 @@ build-windows.bat
 codex-screenshots/
 node_modules/
 test-results/
+audit-results/
+playwright-report/
+Old_project/
+debug.log
 .DS_Store
 Thumbs.db

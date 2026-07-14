@@ -5,8 +5,11 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e": "node scripts/run-playwright.mjs tests/e2e/settings.spec.ts tests/e2e/layout.spec.ts",
+    "test:e2e:audit": "node scripts/run-playwright.mjs",
+    "test:e2e:headed": "node scripts/run-playwright.mjs tests/e2e/settings.spec.ts tests/e2e/layout.spec.ts --headed",
+    "test:e2e:audit:headed": "node scripts/run-playwright.mjs tests/e2e/audit --headed",
+    "test:e2e:firebase": "node scripts/run-playwright.mjs tests/e2e/audit/firebase.spec.ts --firebase"
   },
   "devDependencies": {
     "@playwright/test": "latest",
