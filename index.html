@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/pwa-192.png">
-  <link rel="stylesheet" href="styles.css?v=59">
+  <link rel="stylesheet" href="styles.css?v=72">
 </head>
 <body>
   <header class="app-header">
@@ -147,7 +147,11 @@
       </section>
     </section>
     <p id="message" class="message global-message" role="status"></p>
-    <button id="floatingShareButton" class="primary-button floating-share-button" type="button" hidden aria-label="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;" title="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;"><img class="floating-share-icon" src="share-google-svgrepo-com.svg" alt="" aria-hidden="true"></button>
+    <button id="floatingShareButton" class="primary-button floating-share-button" type="button" hidden aria-label="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;" title="&#1055;&#1086;&#1076;&#1077;&#1083;&#1080;&#1090;&#1100;&#1089;&#1103; &#1089;&#1089;&#1099;&#1083;&#1082;&#1086;&#1081;">
+      <svg class="floating-share-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 16a3 3 0 0 0-2.18.94L8.91 13.5a3.06 3.06 0 0 0 0-3l6.91-3.44A3 3 0 1 0 15 5a3.1 3.1 0 0 0 .09.72L8.18 9.16a3 3 0 1 0 0 5.68l6.91 3.44A3 3 0 1 0 18 16Z"/>
+      </svg>
+    </button>
     <div id="shareQrPopover" class="share-qr-popover" role="dialog" aria-label="QR-код ссылки игры" hidden>
       <div id="shareQrCode" class="share-qr-code" aria-hidden="true"></div>
       <p>Наведите камеру на QR, чтобы открыть игру.</p>
@@ -162,7 +166,9 @@
           <p>Внешний вид</p>
           <h2 id="colorSettingsTitle">Настройки</h2>
         </div>
-        <button id="closeSettingsButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+        <button id="closeSettingsButton" class="ghost-button icon-button close-button" type="button" aria-label="Закрыть">
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg>
+        </button>
       </div>
       <div class="settings-drawer-content">
         <div class="mode-setting">
@@ -177,19 +183,19 @@
         <div class="color-settings-grid">
           <label class="color-field">
             <span>Цвет хедера</span>
-            <input id="headerColor" type="color" value="#28733b">
+            <input id="headerColor" type="color" value="#ffffff">
           </label>
           <label class="color-field">
             <span>Кнопки в хедере</span>
-            <input id="headerButtonColor" type="color" value="#ffffff">
+            <input id="headerButtonColor" type="color" value="#2b313a">
           </label>
           <label class="color-field">
             <span>Текст кнопок хедера</span>
-            <input id="headerButtonTextColor" type="color" value="#18202a">
+            <input id="headerButtonTextColor" type="color" value="#ffffff">
           </label>
           <label class="color-field">
             <span>Текст хедера</span>
-            <input id="headerTextColor" type="color" value="#ffffff">
+            <input id="headerTextColor" type="color" value="#23282f">
           </label>
         </div>
       </div>
@@ -198,7 +204,7 @@
         <div class="color-settings-grid">
           <label class="color-field">
             <span>Цвет кнопок</span>
-            <input id="themeColor" type="color" value="#28733b">
+            <input id="themeColor" type="color" value="#2b313a">
           </label>
           <label class="color-field">
             <span>Цвет текста кнопок</span>
@@ -206,7 +212,7 @@
           </label>
           <label class="color-field">
             <span>Цвет фона</span>
-            <input id="backgroundColor" type="color" value="#eef2f7">
+            <input id="backgroundColor" type="color" value="#ffffff">
           </label>
           <label class="color-field">
             <span>Цвет стола</span>
@@ -216,6 +222,32 @@
             <span>Цвет сукна</span>
             <input id="clothColor" type="color" value="#ffffff">
           </label>
+          <label class="color-field">
+            <span>Цвет текста поля</span>
+            <input id="fieldTextColor" type="color" value="#18202a">
+          </label>
+          <div class="text-backdrop-effects cloth-opacity-effects" aria-label="Прозрачность сукна">
+            <label class="backdrop-opacity-field" for="clothOpacity">
+              <span>Прозрачность сукна</span>
+              <output id="clothOpacityValue" for="clothOpacity">100%</output>
+              <input id="clothOpacity" type="range" min="0" max="100" step="5" value="100">
+            </label>
+          </div>
+          <label class="color-field">
+            <span>Заливка текста поля</span>
+            <input id="textBackdropColor" type="color" value="#ffffff">
+          </label>
+          <div class="text-backdrop-effects" aria-label="Эффекты заливки текста поля">
+            <label class="backdrop-opacity-field" for="textBackdropOpacity">
+              <span>Прозрачность заливки текста поля</span>
+              <output id="textBackdropOpacityValue" for="textBackdropOpacity">100%</output>
+              <input id="textBackdropOpacity" type="range" min="0" max="100" step="5" value="100">
+            </label>
+            <label class="backdrop-shadow-field">
+              <span>Тёмная тень</span>
+              <input id="textBackdropShadow" type="checkbox">
+            </label>
+          </div>
           <label class="color-field">
             <span>Цвет линий разметки</span>
             <input id="lineColor" type="color" value="#3f454a">
@@ -242,8 +274,12 @@
 
         <button id="resetColorSettingsButton" class="primary-button color-reset-button" type="button" disabled>Сброс настроек</button>
       </div>
-      <div id="installAppFooter" class="settings-drawer-footer" hidden>
+      <div id="installAppFooter" class="settings-drawer-footer">
         <button id="installAppButton" class="primary-button install-app-button" type="button" hidden>📲 Установить на устройство</button>
+        <div class="settings-drawer-credits">
+          <span>© Матвей Матвеев</span>
+          <a href="mailto:m@mathfewmatthews.com">m@mathfewmatthews.com</a>
+        </div>
       </div>
     </div>
   </div>
@@ -255,7 +291,9 @@
           <span>Палитра</span>
           <strong id="paletteTargetLabel">Выберите настройку цвета</strong>
         </div>
-        <button id="closePaletteButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+        <button id="closePaletteButton" class="ghost-button icon-button close-button" type="button" aria-label="Закрыть">
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg>
+        </button>
       </div>
       <label class="palette-hex-field">
         <span>HEX</span>
@@ -272,7 +310,9 @@
           <p>Параметры записи</p>
           <h2 id="conventionSettingsTitle">Настройки конвенции</h2>
         </div>
-        <button id="closeConventionButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+        <button id="closeConventionButton" class="ghost-button icon-button close-button" type="button" aria-label="Закрыть">
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg>
+        </button>
       </div>
 <div class="convention-panel-body">
             <label>
@@ -387,23 +427,30 @@
               </select>
             </label>
             <label>
-              <span>Прогрессия распасов<small>Последовательность уровня распасов: 6 даёт стоимость шестёрной игры, 7 — семерной, 8 — восьмерной.</small></span>
+              <span>Прогрессия распасов<small id="raspassProgressionHelp">Стоимость очередного распаса. Обе последовательности переходят к следующей ступени после каждого распаса; часть в скобках повторяется.</small></span>
               <select data-convention-setting="raspassProgression">
-                <option value="none">Без прогрессии</option>
-                <option value="6-7-8">6-7-8</option>
-                <option value="6-7-7-8">6-7-7-8</option>
-                <option value="6-7-8-9">6-7-8-9</option>
+                <option value="6">(6)</option>
+                <option value="6-7">6, (7)</option>
+                <option value="6-7-8">6, 7, (8)</option>
+                <option value="cycle-6-7-8">(6, 7, 8)</option>
+                <option value="6-7-7-8">6, 7, 7, (8)</option>
+                <option value="6-7-8-9">6, 7, 8, (9)</option>
               </select>
             </label>
             <label>
-              <span>Остановка прогрессии<small>Круговая после максимума возвращается к началу; до сыгранной игры держит максимум до выхода.</small></span>
-              <select data-convention-setting="raspassProgressionStop">
-                <option value="cycle">Круговая, всегда продолжать</option>
-                <option value="until-game">До сыгранной игры</option>
+              <span>Минимальная игра для выхода<small id="raspassExitProgressionHelp">Минимальный контракт на той же ступени. Часть в скобках повторяется.</small></span>
+              <select data-convention-setting="raspassExitProgression">
+                <option value="6">(6)</option>
+                <option value="7">(7)</option>
+                <option value="6-7">6, (7)</option>
+                <option value="6-7-8">6, 7, (8)</option>
+                <option value="cycle-6-7-8">(6, 7, 8)</option>
+                <option value="6-7-7-8">6, 7, 7, (8)</option>
+                <option value="6-7-8-9">6, 7, 8, (9)</option>
               </select>
             </label>
             <label>
-              <span>Выход из распасов<small>Какая сыгранная игра сбрасывает прогрессию распасов.</small></span>
+              <span>Что считается выходом<small>Какой результат игры сбрасывает обе прогрессии к началу.</small></span>
               <select data-convention-setting="raspassExitCondition">
                 <option value="game">Сыгранная игра</option>
                 <option value="one-whister-no-penalty">Сыгранная игра | Вистует как минимум один без штрафа</option>
@@ -432,7 +479,9 @@
           <p>Новая запись</p>
           <h2 id="recordTitle">Тип записи</h2>
         </div>
-        <button id="closeRecordButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+        <button id="closeRecordButton" class="ghost-button icon-button close-button" type="button" aria-label="Закрыть">
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg>
+        </button>
       </div>
 
       <div class="steps">
@@ -626,7 +675,9 @@
           <p>Справка</p>
           <h2 id="rulesTitle">Правила игры</h2>
         </div>
-        <button id="closeRulesButton" class="ghost-button icon-button" type="button" aria-label="Закрыть">×</button>
+        <button id="closeRulesButton" class="ghost-button icon-button close-button" type="button" aria-label="Закрыть">
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg>
+        </button>
       </div>
       <div class="rules-content">
         <section>
@@ -670,6 +721,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="qr-creator.js?v=57"></script>
-  <script src="app.js?v=59"></script>
+  <script src="app.js?v=72"></script>
 </body>
 </html>

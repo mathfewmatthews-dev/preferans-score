@@ -1,17 +1,27 @@
+// State and convention defaults
+const DEFAULT_CLOTH_OPACITY = 100;
+const DEFAULT_TEXT_BACKDROP_OPACITY = 100;
+const DEFAULT_TEXT_BACKDROP_SHADOW = false;
+
 const state = {
   convention: "Сочи",
   poolTarget: 20,
   initialPoolTarget: 20,
   raspassLevel: 0,
-  themeColor: "#28733b",
+  themeColor: "#2b313a",
   buttonTextColor: "#ffffff",
-  headerButtonColor: "#ffffff",
-  headerButtonTextColor: "#18202a",
-  headerTextColor: "#ffffff",
-  headerColor: "#28733b",
-  backgroundColor: "#eef2f7",
+  headerButtonColor: "#2b313a",
+  headerButtonTextColor: "#ffffff",
+  headerTextColor: "#23282f",
+  headerColor: "#ffffff",
+  backgroundColor: "#ffffff",
   tableColor: "#ffffff",
   clothColor: "#ffffff",
+  fieldTextColor: "#18202a",
+  clothOpacity: DEFAULT_CLOTH_OPACITY,
+  textBackdropColor: "#ffffff",
+  textBackdropOpacity: DEFAULT_TEXT_BACKDROP_OPACITY,
+  textBackdropShadow: DEFAULT_TEXT_BACKDROP_SHADOW,
   lineColor: "#3f454a",
   appearanceMode: "light",
   scoreCountingMode: "live",
@@ -47,8 +57,8 @@ const STANDARD_CONVENTIONS = {
     whistPenaltyMultiplier: 1,
     declarerRemizWhistMode: "gentleman",
     whistResponsibility: "half",
-    raspassProgression: "none",
-    raspassProgressionStop: "cycle",
+    raspassProgression: "6",
+    raspassExitProgression: "6",
     raspassExitCondition: "game",
     raspassZeroTricksPool: false,
     raspassScoringMode: "mountain",
@@ -83,7 +93,7 @@ const STANDARD_CONVENTIONS = {
     declarerRemizWhistMode: "greedy",
     whistResponsibility: "half",
     raspassProgression: "6-7-8",
-    raspassProgressionStop: "cycle",
+    raspassExitProgression: "6-7",
     raspassExitCondition: "one-whister-no-penalty",
     raspassZeroTricksPool: true,
     raspassScoringMode: "mountain",
@@ -117,8 +127,8 @@ const STANDARD_CONVENTIONS = {
     whistPenaltyMultiplier: 1,
     declarerRemizWhistMode: "gentleman",
     whistResponsibility: "half",
-    raspassProgression: "none",
-    raspassProgressionStop: "cycle",
+    raspassProgression: "6",
+    raspassExitProgression: "6",
     raspassExitCondition: "game",
     raspassZeroTricksPool: false,
     raspassScoringMode: "rostov-whist",
@@ -166,7 +176,7 @@ const COLOR_PALETTE = [
 ];
 const THEME_COLOR_INPUT_IDS = [
   "headerColor", "headerButtonColor", "headerButtonTextColor", "headerTextColor",
-  "themeColor", "buttonTextColor", "backgroundColor", "tableColor", "clothColor", "lineColor",
+  "themeColor", "buttonTextColor", "backgroundColor", "tableColor", "clothColor", "fieldTextColor", "textBackdropColor", "lineColor",
 ];
 
 
@@ -203,6 +213,13 @@ const el = {
   backgroundColor: document.getElementById("backgroundColor"),
   tableColor: document.getElementById("tableColor"),
   clothColor: document.getElementById("clothColor"),
+  fieldTextColor: document.getElementById("fieldTextColor"),
+  clothOpacity: document.getElementById("clothOpacity"),
+  clothOpacityValue: document.getElementById("clothOpacityValue"),
+  textBackdropColor: document.getElementById("textBackdropColor"),
+  textBackdropOpacity: document.getElementById("textBackdropOpacity"),
+  textBackdropOpacityValue: document.getElementById("textBackdropOpacityValue"),
+  textBackdropShadow: document.getElementById("textBackdropShadow"),
   lineColor: document.getElementById("lineColor"),
   tableImageDropzone: document.getElementById("tableImageDropzone"),
   tableImageInput: document.getElementById("tableImageInput"),
@@ -305,6 +322,7 @@ const el = {
   confirmScoreCalculationButton: document.getElementById("confirmScoreCalculationButton"),
 };
 
+// Application bootstrap and event wiring
 function initialize() {
   applyTheme();
   restoreTableImageFromStorage();
@@ -347,6 +365,11 @@ function bindEvents() {
   el.backgroundColor.addEventListener("input", updateThemeFromInputs);
   el.tableColor.addEventListener("input", updateThemeFromInputs);
   el.clothColor.addEventListener("input", updateThemeFromInputs);
+  el.fieldTextColor.addEventListener("input", updateThemeFromInputs);
+  el.clothOpacity?.addEventListener("input", updateClothOpacity);
+  el.textBackdropColor.addEventListener("input", updateThemeFromInputs);
+  el.textBackdropOpacity?.addEventListener("input", updateTextBackdropEffects);
+  el.textBackdropShadow?.addEventListener("change", updateTextBackdropEffects);
   el.lineColor.addEventListener("input", updateThemeFromInputs);
   colorPaletteInputs().forEach((input) => input.addEventListener("change", updateThemeFromInputs));
   bindColorPaletteControls();
@@ -415,6 +438,7 @@ function bindEvents() {
     if (event.target === el.rulesModal) closeRulesModal();
   });
   document.addEventListener("keydown", (event) => {
+    trapOpenOverlayFocus(event);
     if (event.key === "Escape") {
       closeRecordWizard();
       closeScoreConfirmation();
@@ -591,6 +615,14 @@ function renderConventionPanel() {
     else input.value = convention[input.dataset.conventionSetting] ?? "";
     input.disabled = locked;
   });
+  const raspassHelp = document.getElementById("raspassProgressionHelp");
+  const exitHelp = document.getElementById("raspassExitProgressionHelp");
+  if (raspassHelp) {
+    raspassHelp.textContent = `${progressionNotation(convention.raspassProgression)}: стоимость очередного распаса. Обе последовательности переходят к следующей ступени после каждого распаса; часть в скобках повторяется.`;
+  }
+  if (exitHelp) {
+    exitHelp.textContent = `${progressionNotation(convention.raspassExitProgression)}: минимальная игра для выхода на той же ступени; часть в скобках повторяется.`;
+  }
   updateConventionDependencyStates(locked);
   if (el.gameConventionDescription) el.gameConventionDescription.textContent = "";
   if (el.conventionDescription) el.conventionDescription.textContent = "";
@@ -637,12 +669,7 @@ function updateConventionSetting(event) {
 
 function updateConventionDependencyStates(locked) {
   const current = currentConvention();
-  const raspassDisabled = locked || current.raspassProgression === "none";
-  ["raspassProgressionStop"].forEach((key) => {
-    const input = document.querySelector(`[data-convention-setting="${key}"]`);
-    if (input) input.disabled = raspassDisabled;
-  });
-  const exitDisabled = locked || current.raspassProgression === "none";
+  const exitDisabled = locked;
   const exitInput = document.querySelector('[data-convention-setting="raspassExitCondition"]');
   if (exitInput) exitInput.disabled = exitDisabled;
 
@@ -712,8 +739,11 @@ function normalizeConventionConfig(source) {
     whistPenaltyMultiplier: Number(source.whistPenaltyMultiplier ?? fallback.whistPenaltyMultiplier),
     declarerRemizWhistMode,
     whistResponsibility,
-    raspassProgression: normalizeProgression(source.raspassProgression || fallback.raspassProgression),
-    raspassProgressionStop: normalizeRaspassProgressionStop(source.raspassProgressionStop, fallback.raspassProgressionStop),
+    raspassProgression: normalizeProgression(
+      source.raspassProgression ?? fallback.raspassProgression,
+      source.raspassProgressionStop
+    ),
+    raspassExitProgression: normalizeExitProgression(source, fallback),
     raspassExitCondition: source.raspassExitCondition || fallback.raspassExitCondition,
     raspassZeroTricksPool: normalizeRaspassZeroTricksPool(source.raspassZeroTricksPool, fallback.raspassZeroTricksPool),
     raspassScoringMode: normalizeRaspassScoringMode(source.raspassScoringMode, fallback.raspassScoringMode),
@@ -755,15 +785,20 @@ function normalizeRaspassTalonMode(value, fallback = "standard") {
   return ["standard", "closed"].includes(value) ? value : fallback || "standard";
 }
 
-function normalizeRaspassProgressionStop(value, fallback = "cycle") {
-  const normalized = value === "cycle-until-game" ? "until-game" : value;
-  if (["cycle", "until-game"].includes(normalized)) return normalized;
-  return ["cycle", "until-game"].includes(fallback) ? fallback : "cycle";
+function normalizeProgression(value, legacyStop = "") {
+  if (value === "linear" || value === "double") value = "6-7-8";
+  if (value === "none") return "6";
+  if (value === "6-7-8" && legacyStop === "cycle") return "cycle-6-7-8";
+  const allowed = ["6", "7", "6-7", "6-7-8", "cycle-6-7-8", "6-7-7-8", "6-7-8-9"];
+  return allowed.includes(value) ? value : "6";
 }
 
-function normalizeProgression(value) {
-  if (value === "linear" || value === "double") return "6-7-8";
-  return ["none", "6-7-8", "6-7-7-8", "6-7-8-9"].includes(value) ? value : "none";
+function normalizeExitProgression(source, fallback) {
+  if (source.raspassExitProgression != null) return normalizeProgression(source.raspassExitProgression);
+  if (fallback.raspassExitProgression != null && source.raspassProgression == null) {
+    return normalizeProgression(fallback.raspassExitProgression);
+  }
+  return normalizeProgression(source.raspassProgression ?? fallback.raspassProgression, source.raspassProgressionStop);
 }
 
 function normalizeRaspassZeroTricksPool(value, fallback) {
@@ -773,16 +808,32 @@ function normalizeRaspassZeroTricksPool(value, fallback) {
   return Boolean(fallback);
 }
 
+function defaultThemeColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#ffffff" : "#2b313a";
+}
+
+function defaultButtonTextColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#23282f" : "#ffffff";
+}
+
 function defaultHeaderButtonColor(mode = state.appearanceMode) {
-  return mode === "dark" ? "#1f2937" : "#ffffff";
+  return defaultThemeColor(mode);
 }
 
 function defaultHeaderButtonTextColor(mode = state.appearanceMode) {
-  return mode === "dark" ? "#ffffff" : "#18202a";
+  return defaultButtonTextColor(mode);
 }
 
-function defaultHeaderTextColor() {
-  return "#ffffff";
+function defaultHeaderTextColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#ffffff" : "#23282f";
+}
+
+function defaultHeaderColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#23282f" : "#ffffff";
+}
+
+function defaultBackgroundColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#252a31" : "#ffffff";
 }
 
 function defaultTableColor(mode = state.appearanceMode) {
@@ -793,21 +844,31 @@ function defaultSheetColor(mode = state.appearanceMode) {
   return mode === "dark" ? "#20252c" : "#ffffff";
 }
 
+function defaultTextBackdropColor(mode = state.appearanceMode) {
+  return defaultSheetColor(mode);
+}
+
+function defaultFieldTextColor(mode = state.appearanceMode) {
+  return mode === "dark" ? "#edf3f8" : "#18202a";
+}
+
 function defaultLineColor(mode = state.appearanceMode) {
   return mode === "dark" ? "#F5F5F5" : "#3f454a";
 }
 
 function defaultThemeColors(mode = state.appearanceMode) {
   return {
-    themeColor: "#28733b",
-    buttonTextColor: "#ffffff",
+    themeColor: defaultThemeColor(mode),
+    buttonTextColor: defaultButtonTextColor(mode),
     headerButtonColor: defaultHeaderButtonColor(mode),
     headerButtonTextColor: defaultHeaderButtonTextColor(mode),
-    headerTextColor: defaultHeaderTextColor(),
-    headerColor: "#28733b",
-    backgroundColor: mode === "dark" ? "#252a31" : "#eef2f7",
+    headerTextColor: defaultHeaderTextColor(mode),
+    headerColor: defaultHeaderColor(mode),
+    backgroundColor: defaultBackgroundColor(mode),
     tableColor: defaultTableColor(mode),
     clothColor: defaultSheetColor(mode),
+    fieldTextColor: defaultFieldTextColor(mode),
+    textBackdropColor: defaultTextBackdropColor(mode),
     lineColor: defaultLineColor(mode),
   };
 }
@@ -815,7 +876,10 @@ function defaultThemeColors(mode = state.appearanceMode) {
 function colorsMatchDefaults(mode = state.appearanceMode) {
   const defaults = defaultThemeColors(mode);
   const colorsDefault = Object.entries(defaults).every(([key, value]) => (state[key] || value).toLowerCase() === value.toLowerCase());
-  return colorsDefault && !tableImageLoaded;
+  const clothOpacityDefault = normalizeClothOpacity(state.clothOpacity) === DEFAULT_CLOTH_OPACITY;
+  const backdropEffectsDefault = normalizeTextBackdropOpacity(state.textBackdropOpacity) === DEFAULT_TEXT_BACKDROP_OPACITY
+    && state.textBackdropShadow !== true;
+  return colorsDefault && clothOpacityDefault && backdropEffectsDefault && !tableImageLoaded;
 }
 
 function syncColorResetButton() {
@@ -825,6 +889,9 @@ function syncColorResetButton() {
 
 async function resetColorSettings() {
   Object.assign(state, defaultThemeColors());
+  state.clothOpacity = DEFAULT_CLOTH_OPACITY;
+  state.textBackdropOpacity = DEFAULT_TEXT_BACKDROP_OPACITY;
+  state.textBackdropShadow = DEFAULT_TEXT_BACKDROP_SHADOW;
   await clearTableImage();
   applyTheme();
   saveAutosavedGame();
@@ -992,21 +1059,16 @@ function deleteTableImageFromStorage() {
 function setAppearanceMode(mode) {
   const nextMode = mode === "dark" ? "dark" : "light";
   if (state.appearanceMode === nextMode) return;
-  const wasDefaultLightBg = state.backgroundColor === "#eef2f7";
-  const wasDefaultDarkBg = state.backgroundColor === "#252a31";
-  const wasDefaultHeaderButton = !state.headerButtonColor || state.headerButtonColor === defaultHeaderButtonColor(state.appearanceMode);
-  const wasDefaultHeaderButtonText = !state.headerButtonTextColor || state.headerButtonTextColor === defaultHeaderButtonTextColor(state.appearanceMode);
-  const wasDefaultTable = !state.tableColor || state.tableColor === defaultTableColor(state.appearanceMode);
-  const wasDefaultCloth = !state.clothColor || state.clothColor === defaultSheetColor(state.appearanceMode);
-  const wasDefaultLine = !state.lineColor || state.lineColor === defaultLineColor(state.appearanceMode);
+  const previousDefaults = defaultThemeColors(state.appearanceMode);
+  const nextDefaults = defaultThemeColors(nextMode);
+  const defaultKeys = Object.keys(previousDefaults).filter((key) => {
+    const current = String(state[key] || "").toLowerCase();
+    return !current || current === String(previousDefaults[key]).toLowerCase();
+  });
   state.appearanceMode = nextMode;
-  if (nextMode === "dark" && wasDefaultLightBg) state.backgroundColor = "#252a31";
-  if (nextMode === "light" && wasDefaultDarkBg) state.backgroundColor = "#eef2f7";
-  if (wasDefaultHeaderButton) state.headerButtonColor = defaultHeaderButtonColor(nextMode);
-  if (wasDefaultHeaderButtonText) state.headerButtonTextColor = defaultHeaderButtonTextColor(nextMode);
-  if (wasDefaultTable) state.tableColor = defaultTableColor(nextMode);
-  if (wasDefaultCloth) state.clothColor = defaultSheetColor(nextMode);
-  if (wasDefaultLine) state.lineColor = defaultLineColor(nextMode);
+  defaultKeys.forEach((key) => {
+    state[key] = nextDefaults[key];
+  });
   applyTheme();
   saveAutosavedGame();
 }
@@ -1024,16 +1086,73 @@ function syncAppearanceModeControls() {
 }
 
 function updateThemeFromInputs() {
-  state.themeColor = el.themeColor.value || "#28733b";
-  state.buttonTextColor = el.buttonTextColor.value || "#ffffff";
+  state.themeColor = el.themeColor.value || defaultThemeColor();
+  state.buttonTextColor = el.buttonTextColor.value || defaultButtonTextColor();
   state.headerButtonColor = el.headerButtonColor.value || defaultHeaderButtonColor();
   state.headerButtonTextColor = el.headerButtonTextColor.value || defaultHeaderButtonTextColor();
   state.headerTextColor = el.headerTextColor.value || defaultHeaderTextColor();
-  state.headerColor = el.headerColor.value || state.themeColor || "#28733b";
-  state.backgroundColor = el.backgroundColor.value || (state.appearanceMode === "dark" ? "#252a31" : "#eef2f7");
+  state.headerColor = el.headerColor.value || defaultHeaderColor();
+  state.backgroundColor = el.backgroundColor.value || defaultBackgroundColor();
   state.tableColor = el.tableColor.value || defaultTableColor();
   state.clothColor = el.clothColor.value || defaultSheetColor();
+  state.fieldTextColor = el.fieldTextColor.value || defaultFieldTextColor();
+  state.clothOpacity = normalizeClothOpacity(el.clothOpacity?.value);
+  state.textBackdropColor = el.textBackdropColor.value || defaultTextBackdropColor();
   state.lineColor = el.lineColor.value || defaultLineColor();
+  applyTheme();
+  saveAutosavedGame();
+}
+
+function normalizeTextBackdropOpacity(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_TEXT_BACKDROP_OPACITY;
+  return Math.min(100, Math.max(0, Math.round(numeric)));
+}
+
+function normalizeClothOpacity(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_CLOTH_OPACITY;
+  return Math.min(100, Math.max(0, Math.round(numeric)));
+}
+
+function syncClothOpacityControl() {
+  state.clothOpacity = normalizeClothOpacity(state.clothOpacity);
+  if (el.clothOpacity) {
+    el.clothOpacity.value = String(state.clothOpacity);
+    syncRangeProgress(el.clothOpacity, state.clothOpacity);
+  }
+  if (el.clothOpacityValue) el.clothOpacityValue.value = `${state.clothOpacity}%`;
+}
+
+function updateClothOpacity() {
+  state.clothOpacity = normalizeClothOpacity(el.clothOpacity?.value);
+  applyTheme();
+  saveAutosavedGame();
+}
+
+function syncTextBackdropEffectsControls() {
+  state.textBackdropOpacity = normalizeTextBackdropOpacity(state.textBackdropOpacity);
+  state.textBackdropShadow = state.textBackdropShadow === true;
+  if (el.textBackdropOpacity) {
+    el.textBackdropOpacity.value = String(state.textBackdropOpacity);
+    syncRangeProgress(el.textBackdropOpacity, state.textBackdropOpacity);
+  }
+  if (el.textBackdropOpacityValue) el.textBackdropOpacityValue.value = `${state.textBackdropOpacity}%`;
+  if (el.textBackdropShadow) el.textBackdropShadow.checked = state.textBackdropShadow;
+}
+
+function syncRangeProgress(input, value) {
+  if (!input) return;
+  const min = Number(input.min) || 0;
+  const max = Number(input.max) || 100;
+  const numeric = Math.min(max, Math.max(min, Number(value) || 0));
+  const progress = max === min ? 0 : ((numeric - min) / (max - min)) * 100;
+  input.style.setProperty("--range-progress", `${progress}%`);
+}
+
+function updateTextBackdropEffects() {
+  state.textBackdropOpacity = normalizeTextBackdropOpacity(el.textBackdropOpacity?.value);
+  state.textBackdropShadow = el.textBackdropShadow?.checked === true;
   applyTheme();
   saveAutosavedGame();
 }
@@ -1158,7 +1277,8 @@ function setPaletteError(message) {
 function syncButtonSurfaces() {
   const headerButtonBg = el.headerButtonColor?.value || state.headerButtonColor || defaultHeaderButtonColor();
   const headerButtonText = el.headerButtonTextColor?.value || state.headerButtonTextColor || defaultHeaderButtonTextColor();
-  const accentBg = state.themeColor || "#28733b";
+  const accentBg = state.themeColor || defaultThemeColor();
+  const accentText = state.buttonTextColor || defaultButtonTextColor();
   document.querySelectorAll(".app-header .link-button, .app-header .ghost-button, .app-header .primary-button").forEach((button) => {
     button.style.setProperty("background", headerButtonBg, "important");
     button.style.setProperty("background-image", "none", "important");
@@ -1166,7 +1286,10 @@ function syncButtonSurfaces() {
     button.style.setProperty("box-shadow", `inset 0 0 0 999px ${headerButtonBg}`, "important");
   });
   document.querySelectorAll(".primary-button").forEach((button) => {
-    if (!button.closest(".app-header")) button.style.setProperty("background", accentBg, "important");
+    if (!button.closest(".app-header")) {
+      button.style.setProperty("background", accentBg, "important");
+      button.style.setProperty("color", accentText, "important");
+    }
   });
 }
 
@@ -1181,6 +1304,12 @@ function hexToRgbColor(hex) {
     g: parseInt(normalized.slice(2, 4), 16),
     b: parseInt(normalized.slice(4, 6), 16),
   };
+}
+
+function colorWithAlpha(hex, opacity) {
+  const rgb = hexToRgbColor(hex);
+  if (!rgb) return hex;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
 }
 
 function relativeLuminance({ r, g, b }) {
@@ -1211,7 +1340,7 @@ function rgbToHsl({ r, g, b }) {
 }
 
 function logoPaletteForHeader(headerColor) {
-  const rgb = hexToRgbColor(headerColor) || hexToRgbColor("#28733b");
+  const rgb = hexToRgbColor(headerColor) || hexToRgbColor(defaultHeaderColor());
   const luminance = relativeLuminance(rgb);
   const hsl = rgbToHsl(rgb);
   const isYellowHeader = hsl.h >= 38 && hsl.h <= 68 && hsl.s >= 0.35 && hsl.l >= 0.35;
@@ -1246,20 +1375,22 @@ function applySheetLineColorToSvg() {
     element.setAttribute("stroke", color);
   });
 }
+// Theme and control synchronization
 function applyTheme() {
   state.appearanceMode = state.appearanceMode === "dark" ? "dark" : "light";
   const dark = state.appearanceMode === "dark";
-  const fallbackBg = dark ? "#252a31" : "#eef2f7";
+  const fallbackBg = defaultBackgroundColor();
   const fallbackInk = dark ? "#edf3f8" : "#18202a";
   const fallbackMuted = dark ? "#aeb8c5" : "#667080";
+  const fieldTextColor = state.fieldTextColor || defaultFieldTextColor();
   const fallbackPaper = dark ? "#20252c" : "#f5f7fb";
   document.documentElement.dataset.theme = state.appearanceMode;
-  document.documentElement.style.setProperty("--accent", state.themeColor || "#28733b");
-  document.documentElement.style.setProperty("--button-text", state.buttonTextColor || "#ffffff");
+  document.documentElement.style.setProperty("--accent", state.themeColor || defaultThemeColor());
+  document.documentElement.style.setProperty("--button-text", state.buttonTextColor || defaultButtonTextColor());
   document.documentElement.style.setProperty("--header-button-bg", state.headerButtonColor || defaultHeaderButtonColor());
   document.documentElement.style.setProperty("--header-button-text", state.headerButtonTextColor || defaultHeaderButtonTextColor());
   document.documentElement.style.setProperty("--header-text", state.headerTextColor || defaultHeaderTextColor());
-  const headerBg = state.headerColor || state.themeColor || "#28733b";
+  const headerBg = state.headerColor || defaultHeaderColor();
   const logoPalette = logoPaletteForHeader(headerBg);
   document.documentElement.style.setProperty("--header-bg", headerBg);
   if (el.themeColorMeta) el.themeColorMeta.setAttribute("content", headerBg);
@@ -1274,25 +1405,39 @@ function applyTheme() {
   document.documentElement.style.setProperty("--neu-surface", state.backgroundColor || fallbackBg);
   document.documentElement.style.setProperty("--paper", fallbackPaper);
   document.documentElement.style.setProperty("--cloth-color", state.clothColor || defaultSheetColor());
+  document.documentElement.style.setProperty("--cloth-opacity", String(normalizeClothOpacity(state.clothOpacity) / 100));
   const sheetLineColor = state.lineColor || defaultLineColor();
-  document.documentElement.style.setProperty("--sheet-text-backdrop", defaultSheetColor());
+  const textBackdropColor = state.textBackdropColor || defaultTextBackdropColor();
+  const textBackdropOpacity = normalizeTextBackdropOpacity(state.textBackdropOpacity);
+  const textBackdropAlpha = textBackdropOpacity / 100;
+  const textBackdropShadow = state.textBackdropShadow === true;
+  document.documentElement.style.setProperty("--sheet-text-backdrop", textBackdropColor);
+  document.documentElement.style.setProperty("--sheet-text-backdrop-surface", colorWithAlpha(textBackdropColor, textBackdropAlpha));
+  document.documentElement.style.setProperty("--sheet-text-backdrop-opacity", String(textBackdropAlpha));
+  document.documentElement.style.setProperty("--sheet-text-backdrop-shadow", textBackdropShadow ? "0 3px 8px rgba(0, 0, 0, 0.34)" : "none");
+  document.documentElement.style.setProperty("--sheet-text-backdrop-filter", textBackdropShadow ? "drop-shadow(0 2px 3px rgba(0, 0, 0, 0.34))" : "none");
+  document.documentElement.style.setProperty("--field-text-color", fieldTextColor);
   document.documentElement.style.setProperty("--ink", fallbackInk);
   document.documentElement.style.setProperty("--muted", fallbackMuted);
   document.documentElement.style.setProperty("--line", sheetLineColor);
   document.documentElement.style.setProperty("--soft-line", sheetLineColor);
   document.documentElement.style.setProperty("--neu-light", dark ? "#303742" : "#ffffff");
   document.documentElement.style.setProperty("--neu-dark", dark ? "#171b21" : "#a3b1c6");
-  document.documentElement.style.setProperty("--neu-modal-bg", dark ? "#252a31" : "#eef2f7");
-  if (el.themeColor) el.themeColor.value = state.themeColor || "#28733b";
-  if (el.buttonTextColor) el.buttonTextColor.value = state.buttonTextColor || "#ffffff";
+  document.documentElement.style.setProperty("--neu-modal-bg", dark ? "#252a31" : "#ffffff");
+  if (el.themeColor) el.themeColor.value = state.themeColor || defaultThemeColor();
+  if (el.buttonTextColor) el.buttonTextColor.value = state.buttonTextColor || defaultButtonTextColor();
   if (el.headerButtonColor) el.headerButtonColor.value = state.headerButtonColor || defaultHeaderButtonColor();
   if (el.headerButtonTextColor) el.headerButtonTextColor.value = state.headerButtonTextColor || defaultHeaderButtonTextColor();
   if (el.headerTextColor) el.headerTextColor.value = state.headerTextColor || defaultHeaderTextColor();
-  if (el.headerColor) el.headerColor.value = state.headerColor || state.themeColor || "#28733b";
+  if (el.headerColor) el.headerColor.value = state.headerColor || defaultHeaderColor();
   if (el.backgroundColor) el.backgroundColor.value = state.backgroundColor || fallbackBg;
   if (el.tableColor) el.tableColor.value = state.tableColor || defaultTableColor();
   if (el.clothColor) el.clothColor.value = state.clothColor || defaultSheetColor();
+  if (el.fieldTextColor) el.fieldTextColor.value = state.fieldTextColor || defaultFieldTextColor();
+  if (el.textBackdropColor) el.textBackdropColor.value = state.textBackdropColor || defaultTextBackdropColor();
   if (el.lineColor) el.lineColor.value = state.lineColor || defaultLineColor();
+  syncClothOpacityControl();
+  syncTextBackdropEffectsControls();
   syncAppearanceModeControls();
   syncButtonSurfaces();
   syncColorResetButton();
@@ -1312,13 +1457,18 @@ function syncControlsFromState() {
   if (el.backgroundColor) el.backgroundColor.value = state.backgroundColor;
   if (el.tableColor) el.tableColor.value = state.tableColor;
   if (el.clothColor) el.clothColor.value = state.clothColor;
+  if (el.fieldTextColor) el.fieldTextColor.value = state.fieldTextColor || defaultFieldTextColor();
+  if (el.textBackdropColor) el.textBackdropColor.value = state.textBackdropColor;
   if (el.lineColor) el.lineColor.value = state.lineColor || defaultLineColor();
+  syncClothOpacityControl();
+  syncTextBackdropEffectsControls();
   if (activePaletteInput) syncColorPalette(activePaletteInput);
   if (el.scoreCountingMode) el.scoreCountingMode.value = state.scoreCountingMode;
   if (el.poolClosingMode) el.poolClosingMode.value = state.poolClosingMode;
   if (el.playerCount) el.playerCount.value = String(state.players.length);
 }
 
+// Game lifecycle and local state mutations
 function startGame() {
   const inputs = [...document.querySelectorAll("[data-player-name]")];
   if (!currentConvention().name.trim()) {
@@ -1329,15 +1479,20 @@ function startGame() {
   state.poolTarget = clampNumber(el.poolTarget.value, 1, 1000, 20);
   state.initialPoolTarget = state.poolTarget;
   state.raspassLevel = 0;
-  state.themeColor = el.themeColor.value || "#28733b";
-  state.buttonTextColor = el.buttonTextColor.value || "#ffffff";
+  state.themeColor = el.themeColor.value || defaultThemeColor();
+  state.buttonTextColor = el.buttonTextColor.value || defaultButtonTextColor();
   state.headerButtonColor = el.headerButtonColor.value || defaultHeaderButtonColor();
   state.headerButtonTextColor = el.headerButtonTextColor.value || defaultHeaderButtonTextColor();
   state.headerTextColor = el.headerTextColor.value || defaultHeaderTextColor();
-  state.headerColor = el.headerColor.value || state.themeColor || "#28733b";
-  state.backgroundColor = el.backgroundColor.value || (state.appearanceMode === "dark" ? "#252a31" : "#eef2f7");
+  state.headerColor = el.headerColor.value || defaultHeaderColor();
+  state.backgroundColor = el.backgroundColor.value || defaultBackgroundColor();
   state.tableColor = el.tableColor.value || defaultTableColor();
   state.clothColor = el.clothColor.value || defaultSheetColor();
+  state.fieldTextColor = el.fieldTextColor.value || defaultFieldTextColor();
+  state.clothOpacity = normalizeClothOpacity(el.clothOpacity?.value);
+  state.textBackdropColor = el.textBackdropColor.value || defaultTextBackdropColor();
+  state.textBackdropOpacity = normalizeTextBackdropOpacity(el.textBackdropOpacity?.value);
+  state.textBackdropShadow = el.textBackdropShadow?.checked === true;
   state.lineColor = el.lineColor.value || defaultLineColor();
   state.scoreCountingMode = el.scoreCountingMode.value === "manual" ? "manual" : "live";
   state.scoresCalculated = state.scoreCountingMode === "live";
@@ -1558,6 +1713,79 @@ function selectContract(event) {
   updateTrickValidation();
 }
 
+const overlayReturnFocus = new WeakMap();
+
+function managedOverlays() {
+  return [
+    el.colorSettingsDrawer,
+    el.conventionModal,
+    el.rulesModal,
+    el.recordModal,
+    el.addPoolModal,
+    el.scoreConfirmModal
+  ].filter(Boolean);
+}
+
+function syncOverlayBodyState() {
+  const hasOpenModal = managedOverlays().some((overlay) => (
+    overlay !== el.colorSettingsDrawer && overlay.classList.contains("open")
+  ));
+  document.body.classList.toggle("dialog-open", hasOpenModal);
+}
+
+function focusableElements(container) {
+  return [...container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter((item) => !item.hidden && item.getAttribute("aria-hidden") !== "true" && item.getClientRects().length);
+}
+
+// Overlays, focus management, and record wizard controllers
+function setOverlayOpen(container, open, focusTarget = null) {
+  if (!container) return;
+  const wasOpen = container.classList.contains("open");
+  if (open === wasOpen) return;
+
+  if (open) {
+    if (document.activeElement instanceof HTMLElement) {
+      overlayReturnFocus.set(container, document.activeElement);
+    }
+    container.classList.add("open");
+    container.setAttribute("aria-hidden", "false");
+    syncOverlayBodyState();
+    requestAnimationFrame(() => {
+      const target = focusTarget || focusableElements(container)[0];
+      target?.focus({ preventScroll: true });
+    });
+    return;
+  }
+
+  container.classList.remove("open");
+  container.setAttribute("aria-hidden", "true");
+  syncOverlayBodyState();
+  const returnFocus = overlayReturnFocus.get(container);
+  overlayReturnFocus.delete(container);
+  if (returnFocus?.isConnected) {
+    requestAnimationFrame(() => returnFocus.focus({ preventScroll: true }));
+  }
+}
+
+function trapOpenOverlayFocus(event) {
+  if (event.key !== "Tab") return;
+  const overlay = managedOverlays().reverse().find((item) => item.classList.contains("open"));
+  if (!overlay) return;
+  const focusable = focusableElements(overlay);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !overlay.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function openRecordWizard(type = "") {
   if (!gameStarted()) return;
   const requestedType = typeof type === "string" ? type : "";
@@ -1568,13 +1796,11 @@ function openRecordWizard(type = "") {
   syncTypeChoices();
   setWizardStep(el.gameType.value ? firstStepAfterType() : 1);
   renderRoundRows();
-  el.recordModal.classList.add("open");
-  el.recordModal.setAttribute("aria-hidden", "false");
+  setOverlayOpen(el.recordModal, true, el.closeRecordButton);
 }
 
 function closeRecordWizard() {
-  el.recordModal.classList.remove("open");
-  el.recordModal.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.recordModal, false);
   showMessage("");
 }
 
@@ -1601,7 +1827,7 @@ function handleAppInstalled() {
 
 function syncInstallAppButton() {
   const available = Boolean(deferredInstallPrompt) && !isStandalonePwa();
-  if (el.installAppFooter) el.installAppFooter.hidden = !available;
+  if (el.installAppFooter) el.installAppFooter.classList.toggle("has-install-action", available);
   if (el.installAppButton) el.installAppButton.hidden = !available;
 }
 
@@ -1622,8 +1848,7 @@ async function installApp() {
 }
 function openColorSettings() {
   syncInstallAppButton();
-  el.colorSettingsDrawer.classList.add("open");
-  el.colorSettingsDrawer.setAttribute("aria-hidden", "false");
+  setOverlayOpen(el.colorSettingsDrawer, true, el.closeSettingsButton);
 }
 
 function toggleMobileMenu() {
@@ -1652,28 +1877,23 @@ function registerServiceWorker() {
   });
 }
 function closeColorSettings() {
-  el.colorSettingsDrawer.classList.remove("open");
-  el.colorSettingsDrawer.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.colorSettingsDrawer, false);
 }
 
 function openConventionModal() {
   renderConventionPanel();
-  el.conventionModal.classList.add("open");
-  el.conventionModal.setAttribute("aria-hidden", "false");
+  setOverlayOpen(el.conventionModal, true, el.closeConventionButton);
 }
 
 function closeConventionModal() {
-  el.conventionModal.classList.remove("open");
-  el.conventionModal.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.conventionModal, false);
 }
 function openRulesModal() {
-  el.rulesModal.classList.add("open");
-  el.rulesModal.setAttribute("aria-hidden", "false");
+  setOverlayOpen(el.rulesModal, true, el.closeRulesButton);
 }
 
 function closeRulesModal() {
-  el.rulesModal.classList.remove("open");
-  el.rulesModal.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.rulesModal, false);
 }
 
 function selectType(event) {
@@ -2219,49 +2439,55 @@ function raspassPrice() {
 }
 
 function raspassContract() {
-  const sequence = progressionSequence(currentConvention().raspassProgression);
-  return sequence[Math.min(state.raspassLevel || 0, sequence.length - 1)] || 6;
+  return progressionValueAt(currentConvention().raspassProgression, state.raspassLevel || 0);
 }
 
-function progressionSequence(value) {
-  if (value === "6-7-8") return [6, 7, 8];
-  if (value === "6-7-7-8") return [6, 7, 7, 8];
-  if (value === "6-7-8-9") return [6, 7, 8, 9];
-  return [6];
+function progressionPattern(value) {
+  const patterns = {
+    "6": { values: [6], repeatFrom: 0 },
+    "7": { values: [7], repeatFrom: 0 },
+    "6-7": { values: [6, 7], repeatFrom: 1 },
+    "6-7-8": { values: [6, 7, 8], repeatFrom: 2 },
+    "cycle-6-7-8": { values: [6, 7, 8], repeatFrom: 0 },
+    "6-7-7-8": { values: [6, 7, 7, 8], repeatFrom: 3 },
+    "6-7-8-9": { values: [6, 7, 8, 9], repeatFrom: 3 },
+  };
+  return patterns[value] || patterns["6"];
+}
+
+function progressionValueAt(value, index) {
+  const { values, repeatFrom } = progressionPattern(value);
+  const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
+  if (safeIndex < values.length) return values[safeIndex];
+  const repeatLength = values.length - repeatFrom;
+  return values[repeatFrom + ((safeIndex - repeatFrom) % repeatLength)];
+}
+
+function progressionNotation(value) {
+  const { values, repeatFrom } = progressionPattern(value);
+  const prefix = values.slice(0, repeatFrom).join(", ");
+  const repeated = values.slice(repeatFrom).join(", ");
+  return prefix ? `${prefix}, (${repeated})` : `(${repeated})`;
 }
 
 function minimumContractForRaspassExit() {
-  return currentConvention().raspassProgression === "none" ? 6 : raspassContract();
+  if ((state.raspassLevel || 0) <= 0) return 6;
+  return progressionValueAt(currentConvention().raspassExitProgression, (state.raspassLevel || 0) - 1);
 }
 
 function updateRaspassProgression(outcome) {
   if (!outcome || outcome.type === "manual") return;
-  const convention = currentConvention();
-  const hasRaspassProgression = convention.raspassProgression !== "none";
-  if (!hasRaspassProgression) return;
-
   if (outcome.type === "raspass") {
     advanceRaspassLevel();
     return;
   }
-  if (raspassExitSatisfied(outcome)) {
+  if ((state.raspassLevel || 0) > 0 && raspassExitSatisfied(outcome)) {
     state.raspassLevel = 0;
-    return;
-  }
-  if (convention.raspassProgressionStop === "cycle") {
-    advanceRaspassLevel();
   }
 }
 
 function advanceRaspassLevel() {
-  const sequence = progressionSequence(currentConvention().raspassProgression);
-  const next = (state.raspassLevel || 0) + 1;
-  if (next < sequence.length) state.raspassLevel = next;
-  else state.raspassLevel = raspassProgressionWaitsForGame() ? sequence.length - 1 : 0;
-}
-
-function raspassProgressionWaitsForGame() {
-  return currentConvention().raspassProgressionStop === "until-game";
+  state.raspassLevel = Math.max(0, Math.floor(Number(state.raspassLevel) || 0)) + 1;
 }
 
 function raspassExitSatisfied(outcome) {
@@ -2290,6 +2516,7 @@ function whistShortfallAmount(contract, whisters, tricks, mode) {
   return Math.max(0, required - sum(whisters.map((index) => tricks[index])));
 }
 
+// Dashboard rendering
 function refresh() {
   applyTheme();
   renderConventionPanel();
@@ -2343,11 +2570,9 @@ function renderPossibleGames() {
 
 function buildPossibleGames() {
   const convention = currentConvention();
-  const hasRaspassProgression = convention.raspassProgression !== "none";
-  const raspassExitIsActive = hasRaspassProgression && (state.raspassLevel || 0) > 0;
-  const raspassProgression = hasRaspassProgression
-    ? progressionSequence(convention.raspassProgression).map(format).join("-")
-    : "без прогрессии";
+  const raspassExitIsActive = (state.raspassLevel || 0) > 0;
+  const raspassProgression = progressionNotation(convention.raspassProgression);
+  const exitProgression = progressionNotation(convention.raspassExitProgression);
   const availableContractMin = raspassExitIsActive ? minimumContractForRaspassExit() : 6;
   const cards = [
     {
@@ -2356,11 +2581,18 @@ function buildPossibleGames() {
       title: "Игра",
       detail: `Контракты ${format(availableContractMin)}-10`,
       chips: [
-        state.players.length === 3 ? "вист / пас" : "вист / пас / полвиста",
-        whistMinimumHint(availableContractMin),
-        whistResponsibilityLabel(convention),
-        whistRequirementHint(convention),
-        convention.underThreeLoss ? "уход без трёх доступен" : "без ухода без трёх",
+        convention.underThreeLoss ? "уход без трёх" : "без ухода без трёх",
+      ],
+      sections: [
+        {
+          title: "Висты",
+          chips: [
+            state.players.length === 3 ? "вист / пас" : "вист / пас / полвиста",
+            whistMinimumHint(availableContractMin),
+            whistResponsibilityLabel(convention),
+            whistRequirementHint(convention),
+          ],
+        },
       ],
     },
     {
@@ -2369,9 +2601,11 @@ function buildPossibleGames() {
       title: "Распасы",
       detail: `Сейчас ${format(raspassContract())}`,
       chips: [
-        hasRaspassProgression ? `прогрессия ${raspassProgression}` : raspassProgression,
+        `стоимость: ${raspassProgression}`,
         raspassScoringLabel(convention),
         convention.raspassZeroTricksPool ? "за 0 взяток очки в пулю" : "без записи за 0 взяток",
+        `выход: ${exitProgression}`,
+        raspassExitIsActive ? `контракт от ${format(availableContractMin)}` : "",
         raspassExitIsActive ? raspassExitConditionLabel(convention) : "",
       ],
     },
@@ -2381,7 +2615,7 @@ function buildPossibleGames() {
       title: "Мизер",
       detail: "Не взять ни одной",
       chips: [
-        hasRaspassProgression ? (convention.misereExitsRaspass ? "выводит из распасов" : "не сбрасывает распасы") : "отдельная запись",
+        raspassExitIsActive ? (convention.misereExitsRaspass ? "выводит из распасов" : "не сбрасывает распасы") : "отдельная запись",
         "можно отметить карты",
       ],
     },
@@ -2424,10 +2658,6 @@ function createPossibleGameCard(card) {
   button.dataset.recordType = card.type;
   button.dataset.mark = card.mark;
 
-  const mark = document.createElement("span");
-  mark.className = "possible-game-mark";
-  mark.textContent = card.mark;
-
   const title = document.createElement("strong");
   title.textContent = card.title;
 
@@ -2443,7 +2673,23 @@ function createPossibleGameCard(card) {
     chips.appendChild(chip);
   });
 
-  button.append(mark, title, detail, chips);
+  button.append(title, detail, chips);
+  (card.sections || []).forEach((section) => {
+    const sectionNode = document.createElement("span");
+    sectionNode.className = "possible-game-section";
+    const sectionTitle = document.createElement("span");
+    sectionTitle.className = "possible-game-section-title";
+    sectionTitle.textContent = section.title;
+    const sectionChips = document.createElement("span");
+    sectionChips.className = "possible-game-chips";
+    section.chips.filter(Boolean).forEach((chipText) => {
+      const chip = document.createElement("span");
+      chip.textContent = chipText;
+      sectionChips.appendChild(chip);
+    });
+    sectionNode.append(sectionTitle, sectionChips);
+    button.appendChild(sectionNode);
+  });
   return button;
 }
 
@@ -2503,14 +2749,11 @@ function openAddPoolModal() {
   el.addPoolHint.textContent = `Текущий размер: ${format(state.poolTarget)}`;
   el.newPoolTarget.min = String(state.poolTarget + 1);
   el.newPoolTarget.value = String(Math.max(state.poolTarget + 1, fallback));
-  el.addPoolModal.classList.add("open");
-  el.addPoolModal.setAttribute("aria-hidden", "false");
-  el.newPoolTarget.focus();
+  setOverlayOpen(el.addPoolModal, true, el.newPoolTarget);
 }
 
 function closeAddPoolModal() {
-  el.addPoolModal.classList.remove("open");
-  el.addPoolModal.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.addPoolModal, false);
 }
 
 function addPoolTarget() {
@@ -2541,13 +2784,11 @@ function requestScoreCalculation() {
 }
 
 function openScoreConfirmation() {
-  el.scoreConfirmModal.classList.add("open");
-  el.scoreConfirmModal.setAttribute("aria-hidden", "false");
+  setOverlayOpen(el.scoreConfirmModal, true);
 }
 
 function closeScoreConfirmation() {
-  el.scoreConfirmModal.classList.remove("open");
-  el.scoreConfirmModal.setAttribute("aria-hidden", "true");
+  setOverlayOpen(el.scoreConfirmModal, false);
 }
 
 function confirmScoreCalculation() {
@@ -2662,6 +2903,7 @@ function appendChangedValue(values, value) {
   if (Number(values[values.length - 1] || 0) !== next) values.push(next);
 }
 
+// SVG score-sheet rendering
 function renderPoolSheet(totals) {
   ensureScoreLog();
   const svg = el.poolSheet;
@@ -3448,17 +3690,11 @@ function newGame() {
   state.poolTarget = 20;
   state.initialPoolTarget = 20;
   state.raspassLevel = 0;
-  state.themeColor = "#28733b";
-  state.buttonTextColor = "#ffffff";
-  state.headerButtonColor = "#ffffff";
-  state.headerButtonTextColor = "#18202a";
-  state.headerTextColor = "#ffffff";
-  state.headerColor = "#28733b";
-  state.backgroundColor = "#eef2f7";
-  state.tableColor = "#ffffff";
-  state.clothColor = "#ffffff";
-  state.lineColor = "#3f454a";
   state.appearanceMode = "light";
+  Object.assign(state, defaultThemeColors("light"));
+  state.clothOpacity = DEFAULT_CLOTH_OPACITY;
+  state.textBackdropOpacity = DEFAULT_TEXT_BACKDROP_OPACITY;
+  state.textBackdropShadow = DEFAULT_TEXT_BACKDROP_SHADOW;
   state.scoreCountingMode = "live";
   state.scoresCalculated = true;
   state.poolClosingMode = "each";
@@ -3495,7 +3731,10 @@ function newGame() {
   el.backgroundColor.value = state.backgroundColor;
   el.tableColor.value = state.tableColor;
   el.clothColor.value = state.clothColor;
+  el.textBackdropColor.value = state.textBackdropColor;
   el.lineColor.value = state.lineColor;
+  syncClothOpacityControl();
+  syncTextBackdropEffectsControls();
   el.scoreCountingMode.value = state.scoreCountingMode;
   el.poolClosingMode.value = state.poolClosingMode;
   el.playerCount.value = "3";
@@ -3573,6 +3812,7 @@ function loadGame(event) {
       el.headerColor.value = state.headerColor;
       el.backgroundColor.value = state.backgroundColor;
       el.clothColor.value = state.clothColor;
+      el.textBackdropColor.value = state.textBackdropColor;
       el.scoreCountingMode.value = state.scoreCountingMode;
       el.poolClosingMode.value = state.poolClosingMode;
       el.playerCount.value = state.players.length;
@@ -3609,6 +3849,7 @@ function importConventionFile(source) {
   showMessage("Конвенция загружена.");
 }
 
+// Firestore collaboration and remote state synchronization
 function setupRemoteSync() {
   const config = window.FIREBASE_CONFIG;
   const hasConfig = config && config.apiKey && !String(config.apiKey).includes("YOUR_");
@@ -3748,6 +3989,11 @@ function localUiState() {
     backgroundColor: state.backgroundColor,
     tableColor: state.tableColor,
     clothColor: state.clothColor,
+    fieldTextColor: state.fieldTextColor,
+    clothOpacity: state.clothOpacity,
+    textBackdropColor: state.textBackdropColor,
+    textBackdropOpacity: state.textBackdropOpacity,
+    textBackdropShadow: state.textBackdropShadow,
     lineColor: state.lineColor,
     appearanceMode: state.appearanceMode,
   };
@@ -4145,28 +4391,36 @@ async function copyText(value) {
   textarea.remove();
 }
 
+// Persistence compatibility and state normalization
 function normalizeState(source) {
   const players = Array.isArray(source.players) ? source.players : source.Players || state.players;
   const pool = Array.isArray(source.pool) ? source.pool : source.Pool || players.map(() => 0);
   const mountain = Array.isArray(source.mountain) ? source.mountain : source.Mountain || players.map(() => 0);
   const whists = Array.isArray(source.whists) ? source.whists : source.Whists || players.map(() => players.map(() => 0));
   const scoreCountingMode = source.scoreCountingMode === "manual" || source.ScoreCountingMode === "manual" ? "manual" : "live";
+  const appearanceMode = source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "dark" : "light";
+  const themeDefaults = defaultThemeColors(appearanceMode);
   const normalized = {
     convention: source.convention || source.Convention || "Сочи",
     poolTarget: Number(source.poolTarget || source.PoolTarget || 20),
     initialPoolTarget: Number(source.initialPoolTarget || source.InitialPoolTarget || source.poolTarget || source.PoolTarget || 20),
     raspassLevel: Number(source.raspassLevel || source.RaspassLevel || 0),
-    themeColor: source.themeColor || source.ThemeColor || "#28733b",
-    buttonTextColor: source.buttonTextColor || source.ButtonTextColor || "#ffffff",
-    headerButtonColor: source.headerButtonColor || source.HeaderButtonColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#1f2937" : "#ffffff"),
-    headerButtonTextColor: source.headerButtonTextColor || source.HeaderButtonTextColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#ffffff" : "#18202a"),
-    headerTextColor: source.headerTextColor || source.HeaderTextColor || "#ffffff",
-    headerColor: source.headerColor || source.HeaderColor || source.themeColor || source.ThemeColor || "#28733b",
-    backgroundColor: source.backgroundColor || source.BackgroundColor || "#eef2f7",
-    tableColor: source.tableColor || source.TableColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#2b313a" : "#ffffff"),
-    clothColor: source.clothColor || source.ClothColor || (source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "#20252c" : "#ffffff"),
-    lineColor: source.lineColor || source.LineColor || defaultLineColor(source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "dark" : "light"),
-    appearanceMode: source.appearanceMode === "dark" || source.AppearanceMode === "dark" ? "dark" : "light",
+    themeColor: source.themeColor || source.ThemeColor || themeDefaults.themeColor,
+    buttonTextColor: source.buttonTextColor || source.ButtonTextColor || themeDefaults.buttonTextColor,
+    headerButtonColor: source.headerButtonColor || source.HeaderButtonColor || themeDefaults.headerButtonColor,
+    headerButtonTextColor: source.headerButtonTextColor || source.HeaderButtonTextColor || themeDefaults.headerButtonTextColor,
+    headerTextColor: source.headerTextColor || source.HeaderTextColor || themeDefaults.headerTextColor,
+    headerColor: source.headerColor || source.HeaderColor || themeDefaults.headerColor,
+    backgroundColor: source.backgroundColor || source.BackgroundColor || themeDefaults.backgroundColor,
+    tableColor: source.tableColor || source.TableColor || themeDefaults.tableColor,
+    clothColor: source.clothColor || source.ClothColor || themeDefaults.clothColor,
+    fieldTextColor: source.fieldTextColor || source.FieldTextColor || themeDefaults.fieldTextColor,
+    clothOpacity: normalizeClothOpacity(source.clothOpacity ?? source.ClothOpacity),
+    textBackdropColor: source.textBackdropColor || source.TextBackdropColor || themeDefaults.textBackdropColor,
+    textBackdropOpacity: normalizeTextBackdropOpacity(source.textBackdropOpacity ?? source.TextBackdropOpacity),
+    textBackdropShadow: source.textBackdropShadow === true || source.TextBackdropShadow === true,
+    lineColor: source.lineColor || source.LineColor || themeDefaults.lineColor,
+    appearanceMode,
     scoreCountingMode,
     poolClosingMode: source.poolClosingMode === "total" || source.PoolClosingMode === "total" ? "total" : "each",
     scoresCalculated: typeof source.scoresCalculated === "boolean"
@@ -4216,7 +4470,11 @@ function restoreState(snapshot) {
   el.backgroundColor.value = state.backgroundColor;
   el.tableColor.value = state.tableColor;
   el.clothColor.value = state.clothColor;
+  el.fieldTextColor.value = state.fieldTextColor;
+  el.textBackdropColor.value = state.textBackdropColor;
   el.lineColor.value = state.lineColor;
+  syncClothOpacityControl();
+  syncTextBackdropEffectsControls();
   el.scoreCountingMode.value = state.scoreCountingMode;
   el.poolClosingMode.value = state.poolClosingMode;
   el.playerCount.value = state.players.length;
