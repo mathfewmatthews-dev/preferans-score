@@ -162,6 +162,77 @@ test("the table shrinks before the sidebar and the 1180px layout stays stacked",
   expect(stacked.sidebarBelow).toBe(true);
 });
 
+test("pre-game settings never overlap the sheet between 1181 and 1324px", async ({ page }) => {
+  for (const width of [1181, 1200, 1280, 1323, 1324]) {
+    await page.setViewportSize({ width, height: DESKTOP_HEIGHT });
+    await page.goto("/");
+    const geometry = await page.evaluate(() => {
+      const sheet = document.querySelector<HTMLElement>(".pool-card")!.getBoundingClientRect();
+      const settings = document.querySelector<HTMLElement>("#setupPanel")!.getBoundingClientRect();
+      const horizontalOverlap = sheet.left < settings.right && sheet.right > settings.left;
+      const verticalOverlap = sheet.top < settings.bottom && sheet.bottom > settings.top;
+      return {
+        overlap: horizontalOverlap && verticalOverlap,
+        horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth
+      };
+    });
+
+    expect(geometry.overlap, `${width}px`).toBe(false);
+    expect(geometry.horizontalOverflow, `${width}px`).toBeLessThanOrEqual(1);
+  }
+});
+
+test("saved header colors are applied before app bootstrap", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("preferans.autosave.v1", JSON.stringify({
+      started: true,
+      state: {
+        appearanceMode: "light",
+        headerColor: "#7c3aed",
+        headerTextColor: "#f8fafc",
+        headerButtonColor: "#fbbf24",
+        headerButtonTextColor: "#18202a"
+      }
+    }));
+  });
+
+  let resumeApp!: () => void;
+  const appBlocked = new Promise<void>((resolve) => {
+    resumeApp = resolve;
+  });
+  await page.route("**/app.js*", async (route) => {
+    await appBlocked;
+    await route.continue();
+  });
+
+  await page.goto("/", { waitUntil: "commit" });
+  await page.locator(".app-header").waitFor({ state: "visible" });
+  await page.waitForFunction(() => [...document.styleSheets].some((sheet) => sheet.href?.includes("styles.css")));
+
+  const firstPaint = await page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>(".app-header")!;
+    const button = document.querySelector<HTMLElement>(".app-header button")!;
+    return {
+      header: getComputedStyle(header).backgroundColor,
+      headerText: getComputedStyle(header).color,
+      button: getComputedStyle(button).backgroundColor,
+      buttonText: getComputedStyle(button).color,
+      meta: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content
+    };
+  });
+
+  expect(firstPaint).toEqual({
+    header: "rgb(124, 58, 237)",
+    headerText: "rgb(248, 250, 252)",
+    button: "rgb(251, 191, 36)",
+    buttonText: "rgb(24, 32, 42)",
+    meta: "#7c3aed"
+  });
+
+  resumeApp();
+  await page.waitForLoadState("domcontentloaded");
+});
+
 test("empty history reaches the table bottom and remains usable after a record", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: DESKTOP_HEIGHT });
   await openCleanApp(page);
@@ -207,6 +278,40 @@ test("the full header remains visible above the compact-menu breakpoint", async 
   await startGame(page);
   await expect(page.locator("#mobileMenuButton")).toBeHidden();
   await expect(page.locator("#headerActions")).toBeVisible();
+});
+
+test("all buttons share the same hover motion and shadow, including the open hamburger", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const expectedShadow = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.boxShadow = "var(--ui-shadow-button-hover)";
+    document.body.appendChild(probe);
+    const shadow = getComputedStyle(probe).boxShadow;
+    probe.remove();
+    return shadow;
+  });
+  const expectHover = async (selector: string) => {
+    const button = page.locator(selector);
+    await button.hover();
+    await expect.poll(() => button.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { transform: style.transform, shadow: style.boxShadow };
+    })).toEqual({ transform: "matrix(1, 0, 0, 1, 0, -2)", shadow: expectedShadow });
+  };
+
+  await expectHover("#mobileMenuButton");
+  await page.locator("#mobileMenuButton").click();
+  await expect(page.locator("#mobileMenuButton")).toHaveAttribute("aria-expanded", "true");
+  await expectHover("#mobileMenuButton");
+  await expectHover("#settingsButton");
+
+  await page.locator("#settingsButton").click();
+  await expect(page.locator("#colorSettingsDrawer")).toHaveClass(/open/);
+  await expectHover("#closeSettingsButton");
+  await page.locator("#closeSettingsButton").click();
+  await expectHover("#startButton");
 });
 
 test("floating share and record actions stay paired at 816px", async ({ page }) => {

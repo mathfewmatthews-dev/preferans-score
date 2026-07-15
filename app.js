@@ -1286,7 +1286,7 @@ function syncButtonSurfaces() {
     button.style.setProperty("background", headerButtonBg, "important");
     button.style.setProperty("background-image", "none", "important");
     button.style.setProperty("color", headerButtonText, "important");
-    button.style.setProperty("box-shadow", `inset 0 0 0 999px ${headerButtonBg}`, "important");
+    button.style.removeProperty("box-shadow");
   });
   document.querySelectorAll(".primary-button").forEach((button) => {
     if (!button.closest(".app-header")) {

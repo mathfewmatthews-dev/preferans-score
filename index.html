@@ -3,13 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#28733b">
+  <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Пуля">
   <title>Пуля преферанса</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/pwa-192.png">
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      let mode = "light";
+      let colors = {
+        header: "#ffffff",
+        headerText: "#23282f",
+        headerButton: "#2b313a",
+        headerButtonText: "#ffffff",
+      };
+      const validColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(value || "") ? value : fallback;
+      try {
+        const saved = JSON.parse(localStorage.getItem("preferans.autosave.v1") || "null");
+        const savedState = saved?.started && saved.state ? saved.state : null;
+        if (savedState) {
+          mode = savedState.appearanceMode === "dark" ? "dark" : "light";
+          const defaults = mode === "dark"
+            ? { header: "#23282f", headerText: "#ffffff", headerButton: "#ffffff", headerButtonText: "#23282f" }
+            : colors;
+          colors = {
+            header: validColor(savedState.headerColor, defaults.header),
+            headerText: validColor(savedState.headerTextColor, defaults.headerText),
+            headerButton: validColor(savedState.headerButtonColor, defaults.headerButton),
+            headerButtonText: validColor(savedState.headerButtonTextColor, defaults.headerButtonText),
+          };
+        }
+      } catch (error) {
+        // A damaged autosave must not delay the first paint.
+      }
+      root.dataset.theme = mode;
+      root.style.setProperty("--header-bg", colors.header);
+      root.style.setProperty("--header-text", colors.headerText);
+      root.style.setProperty("--header-button-bg", colors.headerButton);
+      root.style.setProperty("--header-button-text", colors.headerButtonText);
+      if (meta) meta.setAttribute("content", colors.header);
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css?v=72">
 </head>
 <body>
