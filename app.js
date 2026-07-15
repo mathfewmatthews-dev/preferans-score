@@ -187,6 +187,7 @@ let wasFullyClosed = false;
 let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
 let deferredInstallPrompt = null;
+let conventionEditSnapshot = null;
 let remoteDb = null;
 let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
@@ -594,29 +595,28 @@ function renderConventionOptions() {
   if (el.conventionModalSelect) {
     el.conventionModalSelect.innerHTML = options;
     el.conventionModalSelect.value = value;
-    el.conventionModalSelect.disabled = document.body.classList.contains("game-started");
+    el.conventionModalSelect.disabled = false;
   }
   state.convention = value;
 }
 
 function renderConventionPanel() {
   const convention = currentConvention();
-  const locked = document.body.classList.contains("game-started");
   const isCustom = !standardConventionNames().includes(convention.name);
   const title = document.getElementById("conventionSettingsTitle");
-  if (title) title.textContent = locked ? "Конвенция" : "Настройки конвенции";
+  if (title) title.textContent = "Настройки конвенции";
   if (el.conventionModalSelect) {
     el.conventionModalSelect.value = convention.name;
-    el.conventionModalSelect.disabled = locked;
+    el.conventionModalSelect.disabled = false;
   }
   if (el.conventionName) {
     el.conventionName.value = convention.name;
-    el.conventionName.disabled = locked || !isCustom;
+    el.conventionName.disabled = !isCustom;
   }
   el.conventionSettingInputs.forEach((input) => {
     if (input.type === "checkbox") input.checked = checkboxSettingChecked(input.dataset.conventionSetting, convention);
     else input.value = convention[input.dataset.conventionSetting] ?? "";
-    input.disabled = locked;
+    input.disabled = false;
   });
   const raspassHelp = document.getElementById("raspassProgressionHelp");
   const exitHelp = document.getElementById("raspassExitProgressionHelp");
@@ -626,7 +626,7 @@ function renderConventionPanel() {
   if (exitHelp) {
     exitHelp.textContent = `${progressionNotation(convention.raspassExitProgression)}: минимальная игра для выхода на той же ступени; часть в скобках повторяется.`;
   }
-  updateConventionDependencyStates(locked);
+  updateConventionDependencyStates(false);
   if (el.gameConventionDescription) el.gameConventionDescription.textContent = "";
   if (el.conventionDescription) el.conventionDescription.textContent = "";
 }
@@ -658,7 +658,6 @@ function updateCustomConventionName() {
 }
 
 function updateConventionSetting(event) {
-  if (document.body.classList.contains("game-started")) return;
   const convention = ensureCustomConvention();
   const key = event.target.dataset.conventionSetting;
   convention[key] = settingValue(event.target, convention[key]);
@@ -1884,12 +1883,35 @@ function closeColorSettings() {
 }
 
 function openConventionModal() {
+  conventionEditSnapshot = JSON.stringify({
+    convention: state.convention,
+    customConventions: state.customConventions
+  });
   renderConventionPanel();
   setOverlayOpen(el.conventionModal, true, el.closeConventionButton);
 }
 
 function closeConventionModal() {
+  if (!el.conventionModal?.classList.contains("open")) return;
+  const currentSnapshot = JSON.stringify({
+    convention: state.convention,
+    customConventions: state.customConventions
+  });
+  const changedDuringGame = gameStarted()
+    && conventionEditSnapshot !== null
+    && currentSnapshot !== conventionEditSnapshot;
+  if (changedDuringGame) {
+    const confirmed = window.confirm(
+      "Применить изменения конвенции? Итоговый счёт партии будет пересчитан по новым параметрам. Уже внесённые записи в пулю, гору и висты останутся как записаны. Нажмите OK, чтобы применить изменения."
+    );
+    if (!confirmed) return;
+  }
   setOverlayOpen(el.conventionModal, false);
+  conventionEditSnapshot = null;
+  if (changedDuringGame) {
+    refresh();
+    saveAutosavedGame();
+  }
 }
 function openRulesModal() {
   setOverlayOpen(el.rulesModal, true, el.closeRulesButton);

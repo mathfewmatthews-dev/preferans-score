@@ -233,6 +233,50 @@ test("saved header colors are applied before app bootstrap", async ({ page }) =>
   await page.waitForLoadState("domcontentloaded");
 });
 
+for (const viewport of [
+  { name: "mobile", width: 390, height: 844 },
+  { name: "desktop", width: 1920, height: 1080 }
+]) {
+  test(`convention settings remain interactive during a game on ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openCleanApp(page);
+    await startGame(page);
+    if (viewport.width <= 1500) await page.locator("#mobileMenuButton").click();
+    await page.locator("#conventionButton").click();
+    await expect(page.locator("#conventionModal")).toHaveClass(/open/);
+
+    await page.locator("#conventionModalSelect").selectOption({ label: "Питер" });
+    await expect(page.locator("#conventionModalSelect")).toHaveValue("Питер");
+    await expect(page.locator('[data-convention-setting="poolUnit"]')).toHaveValue("20");
+
+    const toggle = page.locator('[data-convention-setting="underThreeLoss"]');
+    const initialToggle = await toggle.isChecked();
+    await toggle.setChecked(!initialToggle);
+    await expect(toggle).toBeChecked({ checked: !initialToggle });
+
+    const progression = page.locator('[data-convention-setting="raspassProgression"]');
+    await progression.scrollIntoViewIfNeeded();
+    await progression.selectOption("cycle-6-7-8");
+    await expect(progression).toHaveValue("cycle-6-7-8");
+
+    const confirmation = page.waitForEvent("dialog");
+    const closeAction = page.locator("#closeConventionButton").click();
+    const dialog = await confirmation;
+    expect(dialog.message()).toContain("Итоговый счёт партии будет пересчитан");
+    await dialog.accept();
+    await closeAction;
+    await expect(page.locator("#conventionModal")).not.toHaveClass(/open/);
+
+    await page.reload();
+    if (viewport.width <= 1500) await page.locator("#mobileMenuButton").click();
+    await page.locator("#conventionButton").click();
+    await expect(page.locator("#conventionModalSelect")).toBeEnabled();
+    await expect(page.locator("#conventionModalSelect")).toHaveValue(/Своя конвенция/);
+    await expect(page.locator('[data-convention-setting="underThreeLoss"]')).toBeChecked({ checked: !initialToggle });
+    await expect(page.locator('[data-convention-setting="raspassProgression"]')).toHaveValue("cycle-6-7-8");
+  });
+}
+
 test("empty history reaches the table bottom and remains usable after a record", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: DESKTOP_HEIGHT });
   await openCleanApp(page);
