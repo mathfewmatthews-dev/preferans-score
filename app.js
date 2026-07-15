@@ -188,6 +188,7 @@ let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
 let deferredInstallPrompt = null;
 let conventionEditSnapshot = null;
+let pendingAppConfirmation = null;
 let remoteDb = null;
 let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
@@ -321,6 +322,12 @@ const el = {
   scoreConfirmModal: document.getElementById("scoreConfirmModal"),
   cancelScoreCalculationButton: document.getElementById("cancelScoreCalculationButton"),
   confirmScoreCalculationButton: document.getElementById("confirmScoreCalculationButton"),
+  appConfirmModal: document.getElementById("appConfirmModal"),
+  appConfirmPanel: document.querySelector("#appConfirmModal .app-confirm-panel"),
+  appConfirmTitle: document.getElementById("appConfirmTitle"),
+  appConfirmMessage: document.getElementById("appConfirmMessage"),
+  cancelAppConfirmButton: document.getElementById("cancelAppConfirmButton"),
+  confirmAppConfirmButton: document.getElementById("confirmAppConfirmButton"),
 };
 
 // Application bootstrap and event wiring
@@ -349,7 +356,9 @@ function bindEvents() {
   el.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
   el.headerActions?.addEventListener("click", (event) => {
     const action = event.target.closest("button, label");
-    if (action) window.setTimeout(closeMobileMenu, 0);
+    if (action) window.setTimeout(() => {
+      if (!el.appConfirmModal.classList.contains("open")) closeMobileMenu();
+    }, 0);
   });
   window.addEventListener("resize", () => {
     if (window.matchMedia("(min-width: 1501px)").matches) closeMobileMenu();
@@ -401,6 +410,11 @@ function bindEvents() {
   el.scoreConfirmModal.addEventListener("click", (event) => {
     if (event.target === el.scoreConfirmModal) closeScoreConfirmation();
   });
+  el.cancelAppConfirmButton.addEventListener("click", () => settleAppConfirmation(false));
+  el.confirmAppConfirmButton.addEventListener("click", () => settleAppConfirmation(true));
+  el.appConfirmModal.addEventListener("click", (event) => {
+    if (event.target === el.appConfirmModal) settleAppConfirmation(false);
+  });
   el.gameType.addEventListener("change", renderRoundRows);
   el.manualArea.addEventListener("change", updateManualTargetState);
   el.openRecordButton.addEventListener("click", openRecordWizard);
@@ -443,13 +457,7 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     trapOpenOverlayFocus(event);
     if (event.key === "Escape") {
-      closeRecordWizard();
-      closeScoreConfirmation();
-      closeAddPoolModal();
-      closeRulesModal();
-      closeConventionModal();
-      closeColorSettings();
-      closeMobileMenu();
+      closeTopOverlay();
     }
   });
   el.undoButton.addEventListener("click", undoRecord);
@@ -1724,7 +1732,8 @@ function managedOverlays() {
     el.rulesModal,
     el.recordModal,
     el.addPoolModal,
-    el.scoreConfirmModal
+    el.scoreConfirmModal,
+    el.appConfirmModal
   ].filter(Boolean);
 }
 
@@ -1786,6 +1795,42 @@ function trapOpenOverlayFocus(event) {
     event.preventDefault();
     first.focus();
   }
+}
+
+function closeTopOverlay() {
+  const overlay = managedOverlays().reverse().find((item) => item.classList.contains("open"));
+  if (!overlay) {
+    closeMobileMenu();
+    return;
+  }
+  if (overlay === el.appConfirmModal) settleAppConfirmation(false);
+  else if (overlay === el.scoreConfirmModal) closeScoreConfirmation();
+  else if (overlay === el.addPoolModal) closeAddPoolModal();
+  else if (overlay === el.recordModal) closeRecordWizard();
+  else if (overlay === el.rulesModal) closeRulesModal();
+  else if (overlay === el.conventionModal) closeConventionModal();
+  else if (overlay === el.colorSettingsDrawer) closeColorSettings();
+}
+
+function requestAppConfirmation({ title, message, confirmLabel, danger = false }) {
+  if (pendingAppConfirmation) settleAppConfirmation(false);
+  el.appConfirmTitle.textContent = title;
+  el.appConfirmMessage.textContent = message;
+  el.confirmAppConfirmButton.textContent = confirmLabel;
+  el.appConfirmPanel.classList.toggle("is-danger", danger);
+  return new Promise((resolve) => {
+    pendingAppConfirmation = resolve;
+    setOverlayOpen(el.appConfirmModal, true, el.cancelAppConfirmButton);
+  });
+}
+
+function settleAppConfirmation(confirmed) {
+  if (!pendingAppConfirmation) return;
+  const resolve = pendingAppConfirmation;
+  pendingAppConfirmation = null;
+  setOverlayOpen(el.appConfirmModal, false);
+  if (confirmed) closeMobileMenu();
+  resolve(Boolean(confirmed));
 }
 
 function openRecordWizard(type = "") {
@@ -1891,7 +1936,7 @@ function openConventionModal() {
   setOverlayOpen(el.conventionModal, true, el.closeConventionButton);
 }
 
-function closeConventionModal() {
+async function closeConventionModal() {
   if (!el.conventionModal?.classList.contains("open")) return;
   const currentSnapshot = JSON.stringify({
     convention: state.convention,
@@ -1901,9 +1946,11 @@ function closeConventionModal() {
     && conventionEditSnapshot !== null
     && currentSnapshot !== conventionEditSnapshot;
   if (changedDuringGame) {
-    const confirmed = window.confirm(
-      "Применить изменения конвенции? Итоговый счёт партии будет пересчитан по новым параметрам. Уже внесённые записи в пулю, гору и висты останутся как записаны. Нажмите OK, чтобы применить изменения."
-    );
+    const confirmed = await requestAppConfirmation({
+      title: "Изменение конвенции",
+      message: "Итоговый счёт партии будет пересчитан по новым параметрам. Уже внесённые записи в пулю, гору и висты останутся как записаны.",
+      confirmLabel: "Применить"
+    });
     if (!confirmed) return;
   }
   setOverlayOpen(el.conventionModal, false);
@@ -3718,8 +3765,14 @@ function historyItemHtml(item) {
   return `${escapeHtml(summary)}${details || ""}`;
 }
 
-function resetScores() {
-  if (!confirm("Очистить все очки и журнал?")) return;
+async function resetScores() {
+  const confirmed = await requestAppConfirmation({
+    title: "Очистить партию?",
+    message: "Все очки и журнал будут удалены. Это действие нельзя отменить.",
+    confirmLabel: "Очистить",
+    danger: true
+  });
+  if (!confirmed) return;
   undoStack.push(cloneState());
   redoStack = [];
   state.pool = state.players.map(() => 0);
@@ -3743,8 +3796,15 @@ function resetScores() {
   refresh();
 }
 
-function newGame() {
-  if (currentGameNeedsResetWarning() && !confirm("Текущая партия ещё не завершена. Начать новую и сбросить журнал?")) return;
+async function newGame() {
+  if (currentGameNeedsResetWarning()) {
+    const confirmed = await requestAppConfirmation({
+      title: "Начать новую игру?",
+      message: "Текущая партия ещё не завершена. Новая игра сбросит очки и журнал.",
+      confirmLabel: "Начать новую"
+    });
+    if (!confirmed) return;
+  }
   state.convention = "Сочи";
   state.poolTarget = 20;
   state.initialPoolTarget = 20;

@@ -31,6 +31,14 @@ async function setRange(page: Page, id: string, value: number) {
   }, value);
 }
 
+async function clickHeaderAction(page: Page, selector: string) {
+  const menuButton = page.locator("#mobileMenuButton");
+  if (await menuButton.isVisible() && await menuButton.getAttribute("aria-expanded") !== "true") {
+    await menuButton.click();
+  }
+  await page.locator(selector).click();
+}
+
 test("desktop modal close buttons align with the scrollable content edge", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: DESKTOP_HEIGHT });
   await openCleanApp(page);
@@ -238,11 +246,15 @@ for (const viewport of [
   { name: "desktop", width: 1920, height: 1080 }
 ]) {
   test(`convention settings remain interactive during a game on ${viewport.name}`, async ({ page }) => {
+    const nativeDialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      nativeDialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openCleanApp(page);
     await startGame(page);
-    if (viewport.width <= 1500) await page.locator("#mobileMenuButton").click();
-    await page.locator("#conventionButton").click();
+    await clickHeaderAction(page, "#conventionButton");
     await expect(page.locator("#conventionModal")).toHaveClass(/open/);
 
     await page.locator("#conventionModalSelect").selectOption({ label: "Питер" });
@@ -259,23 +271,140 @@ for (const viewport of [
     await progression.selectOption("cycle-6-7-8");
     await expect(progression).toHaveValue("cycle-6-7-8");
 
-    const confirmation = page.waitForEvent("dialog");
-    const closeAction = page.locator("#closeConventionButton").click();
-    const dialog = await confirmation;
-    expect(dialog.message()).toContain("Итоговый счёт партии будет пересчитан");
-    await dialog.accept();
-    await closeAction;
+    await page.locator("#closeConventionButton").click();
+    await expect(page.locator("#appConfirmModal")).toHaveClass(/open/);
+    await expect(page.locator("#appConfirmModal .confirm-brand")).toHaveText("Пуля преферанса");
+    await expect(page.locator("#appConfirmTitle")).toHaveText("Изменение конвенции");
+    await expect(page.locator("#appConfirmMessage")).toContainText("Итоговый счёт партии будет пересчитан");
+    await expect(page.locator("#appConfirmMessage")).toContainText("останутся как записаны");
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#appConfirmModal")).not.toHaveClass(/open/);
+    await expect(page.locator("#conventionModal")).toHaveClass(/open/);
+    await expect(page.locator("#closeConventionButton")).toBeFocused();
+
+    await page.locator("#closeConventionButton").click();
+    await page.locator("#appConfirmModal").click({ position: { x: 4, y: 4 } });
+    await expect(page.locator("#appConfirmModal")).not.toHaveClass(/open/);
+    await expect(page.locator("#conventionModal")).toHaveClass(/open/);
+
+    await page.locator("#closeConventionButton").click();
+    await page.locator("#confirmAppConfirmButton").click();
     await expect(page.locator("#conventionModal")).not.toHaveClass(/open/);
+    expect(nativeDialogs).toEqual([]);
 
     await page.reload();
-    if (viewport.width <= 1500) await page.locator("#mobileMenuButton").click();
-    await page.locator("#conventionButton").click();
+    await clickHeaderAction(page, "#conventionButton");
     await expect(page.locator("#conventionModalSelect")).toBeEnabled();
     await expect(page.locator("#conventionModalSelect")).toHaveValue(/Своя конвенция/);
     await expect(page.locator('[data-convention-setting="underThreeLoss"]')).toBeChecked({ checked: !initialToggle });
     await expect(page.locator('[data-convention-setting="raspassProgression"]')).toHaveValue("cycle-6-7-8");
   });
 }
+
+for (const viewport of [
+  { name: "mobile", width: 390, height: 844 },
+  { name: "desktop", width: 1920, height: 1080 }
+]) {
+  test(`clear and new-game warnings use the branded dialog on ${viewport.name}`, async ({ page }) => {
+    const nativeDialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      nativeDialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openCleanApp(page);
+    await startGame(page);
+    await recordManual(page, 0, "Гора", 1);
+    await expect(page.locator("#historyList li")).toHaveCount(1);
+
+    await clickHeaderAction(page, "#resetButton");
+    await expect(page.locator("#appConfirmTitle")).toHaveText("Очистить партию?");
+    await expect(page.locator("#appConfirmModal .confirm-brand")).toHaveText("Пуля преферанса");
+    await expect(page.locator("#appConfirmModal .app-confirm-panel")).toHaveClass(/is-danger/);
+    await page.locator("#cancelAppConfirmButton").click();
+    await expect(page.locator("#resetButton")).toBeFocused();
+    await expect(page.locator("#historyList li")).toHaveCount(1);
+
+    await clickHeaderAction(page, "#resetButton");
+    await page.locator("#confirmAppConfirmButton").click();
+    await expect(page.locator("body")).not.toHaveClass(/game-started/);
+
+    await startGame(page);
+    await clickHeaderAction(page, "#newGameButton");
+    await expect(page.locator("#appConfirmTitle")).toHaveText("Начать новую игру?");
+    await expect(page.locator("#appConfirmModal .app-confirm-panel")).not.toHaveClass(/is-danger/);
+    const insets = await page.locator("#appConfirmModal .app-confirm-panel").evaluate((node) => {
+      const panel = (node as HTMLElement).getBoundingClientRect();
+      const brand = node.querySelector<HTMLElement>(".confirm-brand")!.getBoundingClientRect();
+      const actions = node.querySelector<HTMLElement>(".confirm-actions")!.getBoundingClientRect();
+      return {
+        left: brand.left - panel.left,
+        right: panel.right - actions.right,
+        bottom: panel.bottom - actions.bottom
+      };
+    });
+    expect(Math.abs(insets.left - insets.right)).toBeLessThanOrEqual(1);
+    expect(Math.abs(insets.left - insets.bottom)).toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("body")).toHaveClass(/game-started/);
+    await expect(page.locator("#newGameButton")).toBeFocused();
+
+    await clickHeaderAction(page, "#newGameButton");
+    await page.locator("#confirmAppConfirmButton").click();
+    await expect(page.locator("body")).not.toHaveClass(/game-started/);
+    await page.reload();
+    await expect(page.locator("body")).not.toHaveClass(/game-started/);
+    expect(nativeDialogs).toEqual([]);
+  });
+}
+
+test("metadata and social preview describe the public app", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("Пуля преферанса — счётчик игры");
+
+  const metadata = await page.evaluate(() => {
+    const meta = (selector: string) => document.querySelector<HTMLMetaElement>(selector)?.content;
+    return {
+      description: meta('meta[name="description"]'),
+      canonical: document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href,
+      ogType: meta('meta[property="og:type"]'),
+      ogSiteName: meta('meta[property="og:site_name"]'),
+      ogLocale: meta('meta[property="og:locale"]'),
+      ogTitle: meta('meta[property="og:title"]'),
+      ogUrl: meta('meta[property="og:url"]'),
+      ogImage: meta('meta[property="og:image"]'),
+      ogImageType: meta('meta[property="og:image:type"]'),
+      ogImageWidth: meta('meta[property="og:image:width"]'),
+      ogImageHeight: meta('meta[property="og:image:height"]'),
+      twitterCard: meta('meta[name="twitter:card"]'),
+      twitterTitle: meta('meta[name="twitter:title"]')
+    };
+  });
+
+  expect(metadata).toEqual({
+    description: "Удобный счётчик преферанса для записи пули, горы и вистов по конвенциям Сочи, Питер, Ростов и собственным настройкам.",
+    canonical: "https://mathfewmatthews-dev.github.io/preferans-score/",
+    ogType: "website",
+    ogSiteName: "Пуля преферанса",
+    ogLocale: "ru_RU",
+    ogTitle: "Пуля преферанса",
+    ogUrl: "https://mathfewmatthews-dev.github.io/preferans-score/",
+    ogImage: "https://mathfewmatthews-dev.github.io/preferans-score/social-preview.png",
+    ogImageType: "image/png",
+    ogImageWidth: "1200",
+    ogImageHeight: "630",
+    twitterCard: "summary_large_image",
+    twitterTitle: "Пуля преферанса"
+  });
+
+  const imageResponse = await request.get("/social-preview.png");
+  expect(imageResponse.ok()).toBe(true);
+  expect(imageResponse.headers()["content-type"]).toContain("image/png");
+  const image = await imageResponse.body();
+  expect(image.readUInt32BE(16)).toBe(1200);
+  expect(image.readUInt32BE(20)).toBe(630);
+});
 
 test("empty history reaches the table bottom and remains usable after a record", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: DESKTOP_HEIGHT });

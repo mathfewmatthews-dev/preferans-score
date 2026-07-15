@@ -1,0 +1,76 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="42" y1="22" x2="1148" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B313A"/>
+      <stop offset="1" stop-color="#171B21"/>
+    </linearGradient>
+    <filter id="cardShadow" x="686" y="18" width="500" height="604" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.32"/>
+    </filter>
+    <clipPath id="logoClip">
+      <path d="M0 0H566V283C566 439.297 439.297 566 283 566C126.703 566 0 439.297 0 283V0Z"/>
+    </clipPath>
+    <style>
+      @font-face {
+        font-family: "Share Tech Rus";
+        src: url("fonts/share-tech-rus.ttf") format("truetype");
+      }
+    </style>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#background)"/>
+
+  <svg x="70" y="57" width="36" height="36" viewBox="0 0 566 566">
+    <g clip-path="url(#logoClip)">
+      <circle cx="283" cy="283" r="283" fill="white"/>
+      <circle cx="283" r="263" stroke="#FFC400" stroke-width="40"/>
+      <rect x="263.5" y="0.5" width="39" height="565" fill="#FFC400" stroke="#FFC400"/>
+    </g>
+  </svg>
+  <text x="122" y="83" fill="#DDE2E9" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700" letter-spacing="1.8">СЧЁТЧИК ПРЕФЕРАНСА</text>
+
+  <text x="68" y="225" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="116" font-weight="800" letter-spacing="-3">Пуля</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" fill="#F3F5F8">
+    <text x="73" y="318"><tspan fill="#FFC400">•</tspan><tspan dx="18">синхронизация между устройствами</tspan></text>
+    <text x="73" y="380"><tspan fill="#FFC400">•</tspan><tspan dx="18">кастомизация конвенций</tspan></text>
+    <text x="73" y="442"><tspan fill="#FFC400">•</tspan><tspan dx="18">оценка возможных игр раунда</tspan></text>
+    <text x="73" y="504"><tspan fill="#FFC400">•</tspan><tspan dx="18">настройки игрового стола</tspan></text>
+  </g>
+
+  <g filter="url(#cardShadow)">
+    <rect x="716" y="40" width="438" height="550" rx="34" fill="#343B46" stroke="#59616D" stroke-width="2"/>
+  </g>
+  <rect x="742" y="66" width="386" height="498" rx="22" fill="#F8FAFC"/>
+
+  <g stroke="#3F454A">
+    <rect x="774" y="96" width="322" height="438" stroke-width="1.8"/>
+    <path d="M774 96L1096 534" stroke-width="3"/>
+    <path d="M1096 96L774 534" stroke-width="3"/>
+  </g>
+
+  <g font-family="Georgia, Times New Roman, serif" font-size="28" font-weight="700">
+    <text x="756" y="91" fill="#18202A">♠</text>
+    <text x="1098" y="91" fill="#EF3E37">♥</text>
+    <text x="1098" y="558" fill="#EF3E37">♦</text>
+    <text x="756" y="558" fill="#18202A">♣</text>
+  </g>
+
+  <circle cx="935" cy="315" r="54" fill="#49A84F" stroke="#28733B" stroke-width="3"/>
+  <text x="935" y="313" text-anchor="middle" fill="white" font-family="Share Tech Rus, Share Tech, Segoe UI, Arial, sans-serif" font-size="43" font-weight="700">20</text>
+  <text x="935" y="338" text-anchor="middle" fill="white" font-family="Share Tech Rus, Share Tech, Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">ЛИЧНАЯ</text>
+
+  <g fill="#18202A" font-family="Share Tech Rus, Share Tech, Segoe UI, Arial, sans-serif" font-size="25" font-weight="700">
+    <text x="935" y="127" text-anchor="middle">ИГРОК 1</text>
+    <text x="1070" y="315" text-anchor="middle" transform="rotate(-90 1070 315)">ИГРОК 2</text>
+    <text x="935" y="519" text-anchor="middle">ИГРОК 3</text>
+    <text x="800" y="315" text-anchor="middle" transform="rotate(90 800 315)">ИГРОК 4</text>
+  </g>
+
+  <g font-family="Share Tech Rus, Share Tech, Segoe UI, Arial, sans-serif" font-size="42" font-weight="700" text-anchor="middle">
+    <text x="935" y="190" fill="#49A84F">+12</text>
+    <text x="1020" y="326" fill="#18202A" transform="rotate(-90 1020 315)">32</text>
+    <text x="935" y="464" fill="#EF3E37">−4</text>
+    <text x="850" y="326" fill="#49A84F" transform="rotate(90 850 315)">+8</text>
+  </g>
+</svg>

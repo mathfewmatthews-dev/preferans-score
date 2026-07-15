@@ -7112,3 +7112,50 @@ html {
     margin-top: 12px;
   }
 }
+
+/* Branded confirmations replace browser dialogs that expose the site origin. */
+.app-confirm-modal {
+  z-index: 80 !important;
+}
+
+.app-confirm-panel {
+  width: min(520px, calc(100vw - 32px)) !important;
+}
+
+.app-confirm-panel .confirm-brand {
+  margin: 0 0 8px !important;
+  color: var(--accent) !important;
+  font: 700 14px/1.2 var(--ui-font) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.app-confirm-panel #appConfirmMessage {
+  white-space: pre-line;
+}
+
+.app-confirm-panel .confirm-actions {
+  position: static !important;
+  margin: 22px 0 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-top: 0 !important;
+}
+
+.app-confirm-panel.is-danger #confirmAppConfirmButton {
+  color: #fff !important;
+  background: var(--ui-danger) !important;
+  border-color: var(--ui-danger) !important;
+}
+
+@media (max-width: 720px) {
+  .app-confirm-panel {
+    width: calc(100vw - 24px) !important;
+    padding: 22px !important;
+  }
+
+  .app-confirm-panel .confirm-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+}
