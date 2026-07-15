@@ -4196,13 +4196,11 @@ function remoteSaveErrorMessage(error) {
 function currentGameUrl() {
   if (state.gameId) setGameUrl(state.gameId);
   if (!state.gameId) return window.location.href;
-  const base = window.location.protocol === "file:"
+  const appUrl = window.location.protocol === "file:"
     ? "https://mathfewmatthews-dev.github.io/preferans-score/"
     : `${window.location.origin}${window.location.pathname}`;
-  const url = new URL(base, window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.hash = state.gameId;
+  const url = new URL("game.html", new URL("./", appUrl));
+  url.searchParams.set("game", state.gameId);
   return url.href;
 }
 

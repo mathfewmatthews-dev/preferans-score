@@ -1,11 +1,14 @@
-const CACHE_NAME = "preference-pwa-v74";
+const CACHE_NAME = "preference-pwa-v75";
 const APP_SHELL = [
   "./",
   "index.html",
+  "game.html",
   "styles.css",
   "app.js",
   "qr-creator.js",
   "logo.svg",
+  "social-preview.png",
+  "game-preview.png",
   "Pwa.svg",
   "manifest.webmanifest",
   "firebase-config.js",

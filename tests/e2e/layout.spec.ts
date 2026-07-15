@@ -383,7 +383,7 @@ test("metadata and social preview describe the public app", async ({ page, reque
   });
 
   expect(metadata).toEqual({
-    description: "Удобный счётчик преферанса для записи пули, горы и вистов по конвенциям Сочи, Питер, Ростов и собственным настройкам.",
+    description: "Счётчик преферанса для онлайн-записи и игры по конвенциям Сочи, Питер, Ростов и собственным настройкам.",
     canonical: "https://mathfewmatthews-dev.github.io/preferans-score/",
     ogType: "website",
     ogSiteName: "Пуля преферанса",
@@ -404,6 +404,33 @@ test("metadata and social preview describe the public app", async ({ page, reque
   const image = await imageResponse.body();
   expect(image.readUInt32BE(16)).toBe(1200);
   expect(image.readUInt32BE(20)).toBe(630);
+});
+
+test("shared games use their own preview page and return to the synchronized app", async ({ page, context, request }) => {
+  const gameId = "ABCDEFGHIJKLMNOP";
+  const landingResponse = await request.get(`/game.html?game=${gameId}`);
+  expect(landingResponse.ok()).toBe(true);
+  const landingHtml = await landingResponse.text();
+  expect(landingHtml).toContain('<meta property="og:title" content="Подключиться к общей партии">');
+  expect(landingHtml).toContain("https://mathfewmatthews-dev.github.io/preferans-score/game-preview.png");
+  expect(landingHtml).not.toContain("social-preview.png");
+
+  const imageResponse = await request.get("/game-preview.png");
+  expect(imageResponse.ok()).toBe(true);
+  expect(imageResponse.headers()["content-type"]).toContain("image/png");
+  const image = await imageResponse.body();
+  expect(image.readUInt32BE(16)).toBe(1200);
+  expect(image.readUInt32BE(20)).toBe(630);
+
+  await page.goto(`/game.html?game=${gameId}`);
+  await expect(page).toHaveURL(new RegExp(`[?&]game=${gameId}(?:$|[&#])`));
+  expect(new URL(page.url()).pathname).not.toContain("game.html");
+
+  await openCleanApp(page);
+  await startGame(page);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.locator("#floatingShareButton").click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/game\.html\?game=[A-Za-z0-9_-]{16,64}$/);
 });
 
 test("empty history reaches the table bottom and remains usable after a record", async ({ page }) => {

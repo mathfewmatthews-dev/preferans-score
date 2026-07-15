@@ -31,11 +31,11 @@
 
   <text x="68" y="225" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="116" font-weight="800" letter-spacing="-3">Пуля</text>
 
-  <g font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" fill="#F3F5F8">
-    <text x="73" y="318"><tspan fill="#FFC400">•</tspan><tspan dx="18">синхронизация между устройствами</tspan></text>
-    <text x="73" y="380"><tspan fill="#FFC400">•</tspan><tspan dx="18">кастомизация конвенций</tspan></text>
-    <text x="73" y="442"><tspan fill="#FFC400">•</tspan><tspan dx="18">оценка возможных игр раунда</tspan></text>
-    <text x="73" y="504"><tspan fill="#FFC400">•</tspan><tspan dx="18">настройки игрового стола</tspan></text>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="32" font-weight="600" fill="#F3F5F8">
+    <text x="73" y="300"><tspan fill="#FFC400">•</tspan><tspan dx="18">синхронизация между устройствами</tspan></text>
+    <text x="73" y="350"><tspan fill="#FFC400">•</tspan><tspan dx="18">кастомизация конвенций</tspan></text>
+    <text x="73" y="400"><tspan fill="#FFC400">•</tspan><tspan dx="18">оценка возможных игр раунда</tspan></text>
+    <text x="73" y="450"><tspan fill="#FFC400">•</tspan><tspan dx="18">настройки игрового стола</tspan></text>
   </g>
 
   <g filter="url(#cardShadow)">
