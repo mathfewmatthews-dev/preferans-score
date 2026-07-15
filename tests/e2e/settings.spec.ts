@@ -115,13 +115,36 @@ test("mobile color palette supports every color setting and labels wrap", async 
   await page.reload();
   await page.locator("#mobileMenuButton").click();
   await page.locator("#settingsButton").click();
+  await setInputValue(page, "headerColor", "#111827");
+  await setInputValue(page, "headerButtonColor", "#f59e0b");
+  await setInputValue(page, "headerButtonTextColor", "#172033");
   await page.locator("label.color-field:has(#fieldTextColor)").click();
   await expect(page.locator("#mobileColorPalette")).not.toHaveAttribute("hidden", "");
   await expect(page.locator("#paletteTargetLabel")).toHaveText("Цвет текста поля");
 
+  const swatchColors = await page.locator("#paletteSwatches .palette-swatch").evaluateAll((swatches) =>
+    swatches.map((swatch) => ({
+      expected: (swatch as HTMLElement).dataset.color,
+      actual: getComputedStyle(swatch).backgroundColor
+    })));
+  expect(new Set(swatchColors.map(({ actual }) => actual)).size).toBeGreaterThan(10);
+  for (const { expected, actual } of swatchColors) {
+    const channels = expected!.slice(1).match(/.{2}/g)!.map((channel) => Number.parseInt(channel, 16));
+    expect(actual).toBe(`rgb(${channels.join(", ")})`);
+  }
+
   await page.locator("#closePaletteButton").click();
   const label = page.locator("label[for='textBackdropOpacity'] > span");
   await expect(label).toHaveText("Прозрачность заливки текста поля");
+  await page.locator("#closeSettingsButton").click();
+  await page.locator("#mobileMenuButton").click();
+  await expect(page.locator("#headerActions")).toBeVisible();
+  await expect.poll(() => page.locator("#headerActions").evaluate((node) => getComputedStyle(node).backgroundColor))
+    .toBe("rgb(17, 24, 39)");
+  await expect.poll(() => page.locator("#mobileMenuButton").evaluate((node) => getComputedStyle(node).backgroundColor))
+    .toBe("rgb(245, 158, 11)");
+  await expect.poll(() => page.locator("#mobileMenuButton").evaluate((node) => getComputedStyle(node).color))
+    .toBe("rgb(23, 32, 51)");
   const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
   expect(noOverflow).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("settings-mobile.png"), fullPage: true });

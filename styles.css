@@ -6915,6 +6915,26 @@ input[type="file"]::file-selector-button {
   }
 }
 
+/* The compact header menu is part of the header and follows its palette. */
+@media (max-width: 1500px) {
+  .app-header .header-actions {
+    background: var(--header-bg) !important;
+    border-color: color-mix(in srgb, var(--header-button-text) 24%, transparent) !important;
+  }
+
+  .app-header .mobile-menu-button {
+    background: var(--header-button-bg) !important;
+    color: var(--header-button-text) !important;
+    border-color: color-mix(in srgb, var(--header-button-text) 24%, transparent) !important;
+  }
+}
+
+/* Keep palette colors above the late generic button surface rule. */
+.mobile-color-palette .palette-swatch {
+  background-color: var(--swatch) !important;
+  background-image: none !important;
+}
+
 @media (min-width: 721px) and (max-width: 1180px) {
   .floating-record-button,
   body.game-started .floating-record-button,

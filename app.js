@@ -1282,7 +1282,7 @@ function syncButtonSurfaces() {
   const headerButtonText = el.headerButtonTextColor?.value || state.headerButtonTextColor || defaultHeaderButtonTextColor();
   const accentBg = state.themeColor || defaultThemeColor();
   const accentText = state.buttonTextColor || defaultButtonTextColor();
-  document.querySelectorAll(".app-header .link-button, .app-header .ghost-button, .app-header .primary-button").forEach((button) => {
+  document.querySelectorAll(".app-header .link-button, .app-header .ghost-button, .app-header .primary-button, .app-header .mobile-menu-button").forEach((button) => {
     button.style.setProperty("background", headerButtonBg, "important");
     button.style.setProperty("background-image", "none", "important");
     button.style.setProperty("color", headerButtonText, "important");
