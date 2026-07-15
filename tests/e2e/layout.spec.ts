@@ -60,6 +60,109 @@ test("desktop modal close buttons align with the scrollable content edge", async
   await expectCloseAligned(page.locator("#closeRecordButton"), page.locator("#recordModal .modal-panel"));
 });
 
+test("mobile record wizard keeps route steps, footer and scrolling consistent", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCleanApp(page);
+  await startGame(page);
+  await page.locator("#floatingRecordButton").click();
+
+  const visibleSteps = () => page.locator("#recordModal .steps span:visible").allTextContents();
+  await expect.poll(visibleSteps).toEqual(["1"]);
+
+  await page.locator('[data-type="Распасы"]').click();
+  await expect.poll(visibleSteps).toEqual(["1", "2"]);
+  await expect(page.locator("#stepDot2")).toHaveClass(/active/);
+
+  const tableStyle = await page.locator("#recordModal .round-card").evaluate((node) => {
+    const style = getComputedStyle(node);
+    const rowStyle = getComputedStyle(node.querySelector<HTMLElement>(".round-row")!);
+    return {
+      overflow: style.overflow,
+      radius: style.borderTopLeftRadius,
+      rowRadius: rowStyle.borderTopLeftRadius,
+      rowShadow: rowStyle.boxShadow
+    };
+  });
+  expect(tableStyle).toEqual({ overflow: "visible", radius: "0px", rowRadius: "0px", rowShadow: "none" });
+
+  await page.locator("#prevStepButton").click();
+  await expect(page.locator("#recordTitle")).toHaveText("Тип записи");
+  await expect.poll(visibleSteps).toEqual(["1"]);
+
+  await page.locator('[data-type="Ручной ввод"]').click();
+  await expect.poll(visibleSteps).toEqual(["1", "2"]);
+  await expect(page.locator("#addButton")).toHaveText("Записать");
+  await expect(page.locator("#manualPanel")).toHaveCSS("box-shadow", "none");
+  await page.locator("#prevStepButton").click();
+  await expect.poll(visibleSteps).toEqual(["1"]);
+
+  await page.locator('[data-type="Взятки"]').click();
+  await expect.poll(visibleSteps).toEqual(["1", "2", "3"]);
+  await page.locator("#nextStepButton").click();
+  await expect(page.locator('#recordModal .wizard-step[data-step="3"]')).toBeHidden();
+  for (const player of [0, 1, 2]) {
+    await page.locator(`[data-trick-button="${player}"][data-value="0"]`).click();
+  }
+  await expect(page.locator("#recordValidationMessage")).not.toBeEmpty();
+
+  const footerGeometry = await page.locator("#recordModal .wizard-actions").evaluate((footer) => {
+    const message = footer.querySelector<HTMLElement>(".record-validation-message")!.getBoundingClientRect();
+    const buttonRow = footer.querySelector<HTMLElement>(".wizard-action-buttons")!;
+    const buttons = buttonRow.getBoundingClientRect();
+    const panel = footer.closest<HTMLElement>(".modal-panel")!.getBoundingClientRect();
+    return {
+      messageAboveButtons: message.bottom <= buttons.top,
+      messageHeight: message.height,
+      buttonsInsidePanel: buttons.bottom <= panel.bottom + 1,
+      buttonHeight: buttonRow.querySelector("button")!.getBoundingClientRect().height
+    };
+  });
+  expect(footerGeometry.messageAboveButtons).toBe(true);
+  expect(footerGeometry.messageHeight).toBeGreaterThan(30);
+  expect(footerGeometry.buttonsInsidePanel).toBe(true);
+  expect(footerGeometry.buttonHeight).toBeLessThanOrEqual(52);
+});
+
+test("mobile browser Back consumes wizard steps, modals and menu before leaving", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCleanApp(page);
+  const appUrl = page.url();
+  const browserBack = async () => {
+    await page.evaluate(() => window.history.back());
+  };
+
+  await page.locator("#mobileMenuButton").click();
+  await expect(page.locator("#mobileMenuButton")).toHaveAttribute("aria-expanded", "true");
+  await browserBack();
+  await expect(page.locator("#mobileMenuButton")).toHaveAttribute("aria-expanded", "false");
+  expect(page.url()).toBe(appUrl);
+
+  await page.locator("#mobileMenuButton").click();
+  await page.locator("#settingsButton").click();
+  await expect(page.locator("#colorSettingsDrawer")).toHaveClass(/open/);
+  await browserBack();
+  await expect(page.locator("#colorSettingsDrawer")).not.toHaveClass(/open/);
+  expect(page.url()).toBe(appUrl);
+
+  await startGame(page);
+  const gameUrl = page.url();
+  await page.locator("#floatingRecordButton").click();
+  await page.locator('[data-type="Взятки"]').click();
+  await expect(page.locator("#recordTitle")).toHaveText("Кто играет");
+
+  await browserBack();
+  await expect(page.locator("#recordModal")).toHaveClass(/open/);
+  await expect(page.locator("#recordTitle")).toHaveText("Тип записи");
+  await expect(page.locator("#recordModal .steps span:visible")).toHaveCount(1);
+
+  await browserBack();
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+  expect(page.url()).toBe(gameUrl);
+
+  await browserBack();
+  await expect.poll(() => page.url()).toBe("about:blank");
+});
+
 test("opacity ranges use the full track at 0, 50 and 100 percent", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openCleanApp(page);
@@ -431,6 +534,58 @@ test("shared games use their own preview page and return to the synchronized app
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.locator("#floatingShareButton").click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/game\.html\?game=[A-Za-z0-9_-]{16,64}$/);
+});
+
+test("opening a shared game does not replace the main app autosave", async ({ page }) => {
+  await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
+  await openCleanApp(page);
+  await startGame(page);
+  await expect(page.locator(".score-table-card")).toContainText("Анна");
+
+  const sharedGameId = "SHAREDGAME123456";
+  await page.evaluate((gameId) => {
+    const local = JSON.parse(localStorage.getItem("preferans.autosave.v1") || "{}");
+    const shared = structuredClone(local);
+    shared.state.gameId = gameId;
+    shared.state.players = ["Общий 1", "Общий 2", "Общий 3"];
+    localStorage.setItem(`preferans.autosave.v1.shared.${gameId}`, JSON.stringify(shared));
+  }, sharedGameId);
+
+  await page.goto(`/?game=${sharedGameId}`);
+  await expect(page.locator("body")).toHaveClass(/game-started/);
+  await expect(page.locator(".score-table-card")).toContainText("Общий 1");
+
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveClass(/game-started/);
+  await expect(page.locator(".score-table-card")).toContainText("Анна");
+  await expect(page).not.toHaveURL(/[?&]game=/);
+});
+
+test("legacy shared autosave no longer makes the main address reopen that game", async ({ page }) => {
+  const sharedGameId = "LEGACYSHARED1234";
+  await page.goto("/");
+  await page.evaluate((gameId) => {
+    localStorage.removeItem("preferans.autosave.primaryGameId.v1");
+    localStorage.setItem("preferans.autosave.v1", JSON.stringify({
+      started: true,
+      state: {
+        gameId,
+        players: ["Гость 1", "Гость 2", "Гость 3"],
+        pool: [0, 0, 0],
+        mountain: [0, 0, 0],
+        whists: [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+      }
+    }));
+  }, sharedGameId);
+
+  await page.goto("/");
+  await expect(page.locator("body")).not.toHaveClass(/game-started/);
+  const migrated = await page.evaluate((gameId) => ({
+    main: localStorage.getItem("preferans.autosave.v1"),
+    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`)
+  }), sharedGameId);
+  expect(migrated.main).toBeNull();
+  expect(migrated.shared).toContain("Гость 1");
 });
 
 test("empty history reaches the table bottom and remains usable after a record", async ({ page }) => {

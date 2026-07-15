@@ -6831,6 +6831,116 @@ input[type="file"]::file-selector-button {
   }
 }
 
+/* Record wizard: one route-aware progress indicator and a non-overlapping footer. */
+#recordModal .wizard-actions {
+  display: block !important;
+}
+
+#recordModal .record-validation-message {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--red);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+#recordModal .record-validation-message:empty {
+  display: none;
+}
+
+#recordModal .wizard-action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+@media (max-width: 720px) {
+  #recordModal .steps {
+    gap: 10px !important;
+  }
+
+  #recordModal .steps span {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 21px !important;
+  }
+
+  #recordModal .wizard-actions {
+    padding-top: 9px !important;
+  }
+
+  #recordModal .record-validation-message {
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  #recordModal .wizard-action-buttons {
+    width: 100%;
+    gap: 10px;
+  }
+
+  #recordModal .wizard-action-buttons button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    min-height: 50px !important;
+    padding: 8px 10px !important;
+    font-size: 20px !important;
+    line-height: 1.1 !important;
+  }
+
+  #recordModal .manual-panel {
+    gap: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #recordModal .manual-panel .field-grid {
+    gap: 14px !important;
+  }
+
+  #recordModal .manual-panel label,
+  #recordModal .manual-panel .full-field {
+    gap: 6px !important;
+  }
+
+  #recordModal .manual-panel input,
+  #recordModal .manual-panel select {
+    min-height: 52px !important;
+    padding: 10px 14px !important;
+    font-size: 18px !important;
+  }
+
+  #recordModal .round-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    border-inline: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #recordModal .round-rows {
+    gap: 0 !important;
+  }
+
+  #recordModal .round-row,
+  #recordModal.raspass-record .round-row,
+  #recordModal .round-row.has-under-three {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
 /* Collapse the full action row before it starts wrapping on medium screens. */
 @media (min-width: 721px) and (max-width: 1500px) {
   .app-header {

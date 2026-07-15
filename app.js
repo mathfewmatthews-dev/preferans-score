@@ -161,6 +161,8 @@ const FIXED_GAME_VALUES = {
 };
 
 const AUTOSAVE_KEY = "preferans.autosave.v1";
+const SHARED_AUTOSAVE_PREFIX = `${AUTOSAVE_KEY}.shared.`;
+const PRIMARY_GAME_ID_KEY = "preferans.autosave.primaryGameId.v1";
 const TABLE_IMAGE_DB_NAME = "preferans.table-image.v1";
 const TABLE_IMAGE_STORE = "assets";
 const TABLE_IMAGE_KEY = "tableBackground";
@@ -186,9 +188,12 @@ let wizardStep = 1;
 let wasFullyClosed = false;
 let lastRecordOutcome = null;
 let autosaveRestoreStatus = "";
+let activeSharedGameId = null;
 let deferredInstallPrompt = null;
 let conventionEditSnapshot = null;
 let pendingAppConfirmation = null;
+let uiBackGuardUrl = "";
+let uiBackGuardInstalled = false;
 let remoteDb = null;
 let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
@@ -263,6 +268,7 @@ const el = {
   manualAmount: document.getElementById("manualAmount"),
   manualNote: document.getElementById("manualNote"),
   addButton: document.getElementById("addButton"),
+  recordValidationMessage: document.getElementById("recordValidationMessage"),
   resetButton: document.getElementById("resetButton"),
   message: document.getElementById("message"),
   gameCaption: document.getElementById("gameCaption"),
@@ -300,6 +306,7 @@ const el = {
   stepDot1: document.getElementById("stepDot1"),
   stepDot2: document.getElementById("stepDot2"),
   stepDot3: document.getElementById("stepDot3"),
+  stepDot4: document.getElementById("stepDot4"),
   typeChoices: document.getElementById("typeChoices"),
   newGameButton: document.getElementById("newGameButton"),
   settingsButton: document.getElementById("settingsButton"),
@@ -337,9 +344,10 @@ function initialize() {
   registerServiceWorker();
   setupRemoteSync();
   const urlGameId = getUrlGameId();
-  autosaveRestoreStatus = urlGameId && remoteAvailable
+  activeSharedGameId = urlGameId && urlGameId !== storedPrimaryGameId() ? urlGameId : null;
+  autosaveRestoreStatus = activeSharedGameId && remoteAvailable
     ? ""
-    : restoreAutosavedGame(urlGameId);
+    : restoreAutosavedGame(activeSharedGameId);
   renderConventionOptions();
   syncControlsFromState();
   renderConventionPanel();
@@ -348,6 +356,7 @@ function initialize() {
   hydrateSelectors();
   renderRoundRows();
   refresh();
+  installUiBackGuard();
   if (urlGameId && autosaveRestoreStatus !== "restored") loadRemoteGame(urlGameId);
   if (autosaveRestoreStatus === "failed") showMessage("Не удалось восстановить автосохранение.");
 }
@@ -530,7 +539,8 @@ function saveAutosavedGame() {
   if (!gameStarted()) return;
   if (!applyingRemoteState) state.remoteUpdatedAt = Date.now();
   try {
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ started: true, state }));
+    if (!activeSharedGameId) storePrimaryGameId(state.gameId);
+    localStorage.setItem(currentAutosaveKey(), JSON.stringify({ started: true, state }));
   } catch (error) {
     // Local storage can be unavailable in some privacy modes; manual save still works.
   }
@@ -539,7 +549,8 @@ function saveAutosavedGame() {
 
 function clearAutosavedGame() {
   try {
-    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.removeItem(currentAutosaveKey());
+    if (!activeSharedGameId) storePrimaryGameId(null);
   } catch (error) {
     // Ignore storage failures; this should never block the UI.
   }
@@ -547,10 +558,28 @@ function clearAutosavedGame() {
 
 function restoreAutosavedGame(expectedGameId = null) {
   try {
-    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    const key = expectedGameId ? sharedAutosaveKey(expectedGameId) : AUTOSAVE_KEY;
+    let raw = localStorage.getItem(key);
+    if (!raw && expectedGameId) {
+      const legacyRaw = localStorage.getItem(AUTOSAVE_KEY);
+      const legacy = legacyRaw ? JSON.parse(legacyRaw) : null;
+      if (normalizeGameId(legacy?.state?.gameId) === expectedGameId) {
+        raw = legacyRaw;
+        localStorage.setItem(key, legacyRaw);
+        localStorage.removeItem(AUTOSAVE_KEY);
+      }
+    }
     if (!raw) return "";
     const parsed = JSON.parse(raw);
     if (!parsed?.started || !parsed.state) return "";
+    if (!expectedGameId && !storedPrimaryGameId()) {
+      const legacyGameId = normalizeGameId(parsed.state.gameId);
+      if (legacyGameId) {
+        localStorage.setItem(sharedAutosaveKey(legacyGameId), raw);
+        localStorage.removeItem(AUTOSAVE_KEY);
+        return "";
+      }
+    }
     if (expectedGameId && normalizeGameId(parsed.state.gameId) !== expectedGameId) return "";
     Object.assign(state, normalizeState(parsed.state));
     ensureScoreLog();
@@ -606,6 +635,32 @@ function renderConventionOptions() {
     el.conventionModalSelect.disabled = false;
   }
   state.convention = value;
+}
+
+function sharedAutosaveKey(gameId) {
+  return `${SHARED_AUTOSAVE_PREFIX}${normalizeGameId(gameId) || "unknown"}`;
+}
+
+function currentAutosaveKey() {
+  return activeSharedGameId ? sharedAutosaveKey(activeSharedGameId) : AUTOSAVE_KEY;
+}
+
+function storedPrimaryGameId() {
+  try {
+    return normalizeGameId(localStorage.getItem(PRIMARY_GAME_ID_KEY));
+  } catch (error) {
+    return null;
+  }
+}
+
+function storePrimaryGameId(gameId) {
+  try {
+    const normalized = normalizeGameId(gameId);
+    if (normalized) localStorage.setItem(PRIMARY_GAME_ID_KEY, normalized);
+    else localStorage.removeItem(PRIMARY_GAME_ID_KEY);
+  } catch (error) {
+    // Storage may be unavailable in private browsing; autosave already handles that case.
+  }
 }
 
 function renderConventionPanel() {
@@ -1480,6 +1535,7 @@ function syncControlsFromState() {
 
 // Game lifecycle and local state mutations
 function startGame() {
+  activeSharedGameId = null;
   const inputs = [...document.querySelectorAll("[data-player-name]")];
   if (!currentConvention().name.trim()) {
     showMessage("Укажите название конвенции.");
@@ -1812,6 +1868,51 @@ function closeTopOverlay() {
   else if (overlay === el.colorSettingsDrawer) closeColorSettings();
 }
 
+function installUiBackGuard() {
+  if (uiBackGuardInstalled || !window.history?.pushState) return;
+  uiBackGuardInstalled = true;
+  uiBackGuardUrl = window.location.href;
+  window.history.pushState({ ...(window.history.state || {}), preferansUiGuard: true }, "", uiBackGuardUrl);
+  window.addEventListener("popstate", handleUiBrowserBack);
+}
+
+function handleUiBrowserBack() {
+  if (!consumeTopUiLayer()) {
+    window.history.back();
+    return;
+  }
+  window.history.pushState({ ...(window.history.state || {}), preferansUiGuard: true }, "", uiBackGuardUrl || window.location.href);
+}
+
+function consumeTopUiLayer() {
+  if (el.colorPalette && !el.colorPalette.hidden) {
+    closeColorPalette();
+    return true;
+  }
+
+  const overlay = managedOverlays().reverse().find((item) => item.classList.contains("open"));
+  if (overlay === el.recordModal) {
+    const steps = wizardSteps();
+    if (steps.indexOf(wizardStep) > 0) previousStep();
+    else closeRecordWizard();
+    return true;
+  }
+  if (overlay) {
+    closeTopOverlay();
+    return true;
+  }
+
+  if (el.shareQrPopover && !el.shareQrPopover.hidden) {
+    hideShareQrPopover();
+    return true;
+  }
+  if (el.appHeader?.classList.contains("menu-open")) {
+    closeMobileMenu();
+    return true;
+  }
+  return false;
+}
+
 function requestAppConfirmation({ title, message, confirmLabel, danger = false }) {
   if (pendingAppConfirmation) settleAppConfirmation(false);
   el.appConfirmTitle.textContent = title;
@@ -1848,6 +1949,7 @@ function openRecordWizard(type = "") {
 
 function closeRecordWizard() {
   setOverlayOpen(el.recordModal, false);
+  showRecordValidation("");
   showMessage("");
 }
 
@@ -1994,6 +2096,14 @@ function nextStep() {
 function previousStep() {
   const steps = wizardSteps();
   const index = steps.indexOf(wizardStep);
+  if (index === 1) {
+    el.gameType.value = "";
+    resetMisereCards();
+    syncTypeChoices();
+    renderRoundRows();
+    setWizardStep(1);
+    return;
+  }
   setWizardStep(steps[Math.max(0, index - 1)]);
 }
 
@@ -2004,14 +2114,16 @@ function setWizardStep(step) {
   document.querySelectorAll(".wizard-step").forEach((section) => {
     if (section.dataset.step === "round") {
       section.hidden = wizardStep !== trickWizardStep();
+    } else if (section.dataset.step === "3") {
+      section.hidden = el.gameType.value !== "Мизер" || wizardStep !== 3;
     } else {
       section.hidden = Number(section.dataset.step) !== wizardStep;
     }
   });
-  [el.stepDot1, el.stepDot2, el.stepDot3].forEach((dot, index) => {
-    const dotStep = index + 1;
-    dot.hidden = !steps.includes(dotStep);
-    dot.classList.toggle("active", dotStep === wizardStep);
+  [el.stepDot1, el.stepDot2, el.stepDot3, el.stepDot4].forEach((dot, index) => {
+    dot.hidden = index >= steps.length;
+    dot.textContent = String(index + 1);
+    dot.classList.toggle("active", index === steps.indexOf(wizardStep));
   });
   const currentIndex = steps.indexOf(wizardStep);
   const isLastStep = currentIndex === steps.length - 1;
@@ -2019,7 +2131,7 @@ function setWizardStep(step) {
   el.nextStepButton.style.display = isLastStep ? "none" : "";
   el.addButton.style.display = el.gameType.value && isLastStep ? "" : "none";
   syncRecordTitle();
-  if (wizardStep !== trickWizardStep()) showMessage("");
+  if (wizardStep !== trickWizardStep()) showRecordValidation("");
   updateTrickValidation();
 }
 
@@ -2219,6 +2331,7 @@ function syncTrickPickerStates() {
 function addRecord() {
   try {
     showMessage("");
+    showRecordValidation("");
     const before = cloneState();
     const beforeTotals = calculateTotals();
     lastRecordOutcome = null;
@@ -2240,7 +2353,7 @@ function addRecord() {
     refresh();
     saveAutosavedGame();
   } catch (error) {
-    showMessage(error.message);
+    showRecordValidation(error.message);
   }
 }
 
@@ -3793,6 +3906,7 @@ async function resetScores() {
   document.body.classList.remove("game-started");
   closeConventionModal();
   clearAutosavedGame();
+  activeSharedGameId = null;
   refresh();
 }
 
@@ -3838,6 +3952,7 @@ async function newGame() {
   document.body.classList.remove("game-started");
   closeConventionModal();
   clearAutosavedGame();
+  activeSharedGameId = null;
   renderConventionOptions();
   el.convention.value = state.convention;
   el.poolTarget.value = String(state.poolTarget);
@@ -3913,6 +4028,7 @@ function loadGame(event) {
         event.target.value = "";
         return;
       }
+      activeSharedGameId = null;
       Object.assign(state, normalizeState(loaded));
       undoStack = [];
       redoStack = [];
@@ -4006,6 +4122,7 @@ function setGameUrl(gameId) {
   const url = new URL(window.location.href);
   url.searchParams.set("game", gameId);
   window.history.replaceState({}, "", url);
+  uiBackGuardUrl = window.location.href;
 }
 
 function clearGameUrl() {
@@ -4013,6 +4130,7 @@ function clearGameUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("game");
   window.history.replaceState({}, "", (url.pathname + url.search + url.hash) || ".");
+  uiBackGuardUrl = window.location.href;
 }
 
 function remoteGameRef(gameId = state.gameId) {
@@ -4683,14 +4801,14 @@ function setTrickValueSilently(index, value) {
 
 function updateTrickValidation() {
   if (!el.recordModal.classList.contains("open") || el.gameType.value === "Ручной ввод" || wizardStep !== trickWizardStep()) {
-    showMessage("");
+    showRecordValidation("");
     return;
   }
   try {
     validateTrickSum(false);
-    showMessage("");
+    showRecordValidation("");
   } catch (error) {
-    showMessage(error.message);
+    showRecordValidation(error.message);
   }
 }
 
@@ -4810,6 +4928,10 @@ function tricksText(tricks) {
 
 function showMessage(message) {
   el.message.textContent = message;
+}
+
+function showRecordValidation(message) {
+  if (el.recordValidationMessage) el.recordValidationMessage.textContent = message || "";
 }
 
 function launchCelebration() {
