@@ -89,7 +89,11 @@ export async function recordManual(page: Page, player: number, area: "Гора" 
 
 export async function snapshot(page: Page): Promise<ActualSnapshot> {
   return page.evaluate(() => {
-    const parsed = JSON.parse(localStorage.getItem("preferans.autosave.v1") || "{}");
+    const gameId = new URLSearchParams(location.search).get("game");
+    const key = gameId
+      ? `preferans.autosave.v1.shared.${gameId}`
+      : "preferans.autosave.v1";
+    const parsed = JSON.parse(localStorage.getItem(key) || "{}");
     return parsed.state;
   });
 }

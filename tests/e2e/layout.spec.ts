@@ -168,7 +168,7 @@ test("mobile browser Back closes a record modal after unwinding every route step
   await openCleanApp(page);
   await startGame(page);
   const localGameUrl = page.url();
-  expect(localGameUrl).not.toContain("?game=");
+  expect(localGameUrl).toMatch(/\/game\/\?game=[A-Za-z0-9_-]{16,64}$/);
   const browserBack = async () => {
     await page.evaluate(() => window.history.back());
   };
@@ -538,13 +538,13 @@ test("metadata and social preview describe the public app", async ({ page, reque
 
   expect(metadata).toEqual({
     description: "Счётчик преферанса для онлайн-записи и игры по конвенциям Сочи, Питер, Ростов и собственным настройкам.",
-    canonical: "https://mathfewmatthews-dev.github.io/preferans-score/",
+    canonical: "https://preferans-score.online/",
     ogType: "website",
     ogSiteName: "Пуля преферанса",
     ogLocale: "ru_RU",
     ogTitle: "Пуля преферанса",
-    ogUrl: "https://mathfewmatthews-dev.github.io/preferans-score/",
-    ogImage: "https://mathfewmatthews-dev.github.io/preferans-score/social-preview.png",
+    ogUrl: "https://preferans-score.online/",
+    ogImage: "https://preferans-score.online/social-preview.png",
     ogImageType: "image/png",
     ogImageWidth: "1200",
     ogImageHeight: "630",
@@ -573,7 +573,7 @@ test("shared games use their own preview page and return to the synchronized app
   expect(landingResponse.ok()).toBe(true);
   const landingHtml = await landingResponse.text();
   expect(landingHtml).toContain('<meta property="og:title" content="Подключиться к общей партии">');
-  expect(landingHtml).toContain("https://mathfewmatthews-dev.github.io/preferans-score/game-preview.png");
+  expect(landingHtml).toContain("https://preferans-score.online/game-preview.png");
   expect(landingHtml).not.toContain("social-preview.png");
 
   const imageResponse = await request.get("/game-preview.png");
@@ -585,7 +585,7 @@ test("shared games use their own preview page and return to the synchronized app
 
   await page.goto(`/game/?game=${gameId}`);
   await expect(page).toHaveURL(new RegExp(`[?&]game=${gameId}(?:$|[&#])`));
-  expect(new URL(page.url()).pathname).not.toContain("/game/");
+  expect(new URL(page.url()).pathname).toContain("/game/");
 
   await openCleanApp(page);
   await startGame(page);
@@ -598,12 +598,13 @@ test("opening the main address in a new tab keeps a shared game isolated", async
   await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
   await openCleanApp(page);
   await startGame(page);
-  await expect(page).not.toHaveURL(/[?&]game=/);
+  await expect(page).toHaveURL(/\/game\/\?game=[A-Za-z0-9_-]{16,64}$/);
   await expect(page.locator(".score-table-card")).toContainText("Анна");
 
   const sharedGameId = "SHAREDGAME123456";
   await page.evaluate((gameId) => {
-    const local = JSON.parse(localStorage.getItem("preferans.autosave.v1") || "{}");
+    const localKey = Object.keys(localStorage).find((item) => item.startsWith("preferans.autosave.v1.shared."));
+    const local = JSON.parse((localKey && localStorage.getItem(localKey)) || "{}");
     const shared = structuredClone(local);
     shared.state.gameId = gameId;
     shared.state.players = ["Общий 1", "Общий 2", "Общий 3"];
@@ -613,29 +614,32 @@ test("opening the main address in a new tab keeps a shared game isolated", async
   await page.goto(`/?game=${sharedGameId}`);
   await expect(page.locator("body")).toHaveClass(/game-started/);
   await expect(page.locator(".score-table-card")).toContainText("Общий 1");
+  await expect(page).toHaveURL(new RegExp(`/game/\\?game=${sharedGameId}(?:$|[&#])`));
 
   const mainPage = await context.newPage();
   await mainPage.goto("/");
-  await expect(mainPage.locator("body")).toHaveClass(/game-started/);
-  await expect(mainPage.locator(".score-table-card")).toContainText("Анна");
+  await expect(mainPage.locator("body")).not.toHaveClass(/game-started/);
   await expect(mainPage).not.toHaveURL(/[?&]game=/);
 
   await expect(page).toHaveURL(new RegExp(`[?&]game=${sharedGameId}(?:$|[&#])`));
   await expect(page.locator(".score-table-card")).toContainText("Общий 1");
 });
 
-test("the main address repairs a shared-game autosave from the primary backup", async ({ page }) => {
+test("the main address archives legacy primary and polluted autosaves without opening a game", async ({ page }) => {
   await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
   await openCleanApp(page);
   await startGame(page);
 
-  const saved = await page.evaluate(() => ({
-    primary: localStorage.getItem("preferans.autosave.v1"),
-    backup: localStorage.getItem("preferans.autosave.primary.v1"),
-    primaryId: localStorage.getItem("preferans.autosave.primaryGameId.v1")
-  }));
+  const saved = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("preferans.autosave.v1.shared."));
+    const primary = key ? localStorage.getItem(key) : null;
+    const primaryId = JSON.parse(primary || "{}").state?.gameId;
+    localStorage.setItem("preferans.autosave.v1", primary);
+    localStorage.setItem("preferans.autosave.primary.v1", primary);
+    localStorage.setItem("preferans.autosave.primaryGameId.v1", primaryId);
+    return { primary, primaryId };
+  });
   expect(saved.primary).toBeTruthy();
-  expect(saved.backup).toBe(saved.primary);
   expect(saved.primaryId).toBeTruthy();
 
   const sharedGameId = "CONTAMINATED1234";
@@ -648,14 +652,20 @@ test("the main address repairs a shared-game autosave from the primary backup", 
 
   await page.goto("/");
   await expect(page).not.toHaveURL(/[?&]game=/);
-  await expect(page.locator("body")).toHaveClass(/game-started/);
-  await expect(page.locator(".score-table-card")).toContainText("Анна");
+  await expect(page.locator("body")).not.toHaveClass(/game-started/);
   const repaired = await page.evaluate((gameId) => ({
     main: localStorage.getItem("preferans.autosave.v1"),
-    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`)
+    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`),
+    archivedPrimary: localStorage.getItem(`preferans.autosave.v1.shared.${localStorage.getItem("preferans.autosave.primaryGameId.v1")}`),
+    backup: localStorage.getItem("preferans.autosave.primary.v1"),
+    primaryId: localStorage.getItem("preferans.autosave.primaryGameId.v1")
   }), sharedGameId);
-  expect(repaired.main).toBe(saved.backup);
+  expect(repaired.main).toBeNull();
+  expect(repaired.backup).toBeNull();
+  expect(repaired.primaryId).toBeNull();
   expect(repaired.shared).toContain("Общий 1");
+  const archivedOriginal = await page.evaluate((gameId) => localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`), saved.primaryId);
+  expect(archivedOriginal).toContain("Анна");
 });
 
 test("the main address rejects a legacy shared game marked as the primary autosave", async ({ page }) => {
@@ -695,8 +705,12 @@ test("the main address rejects a shared game even when its primary backup is als
   await startGame(page);
 
   const sharedGameId = await page.evaluate(() => {
-    const raw = localStorage.getItem("preferans.autosave.v1");
+    const key = Object.keys(localStorage).find((item) => item.startsWith("preferans.autosave.v1.shared."));
+    const raw = key ? localStorage.getItem(key) : null;
     const gameId = JSON.parse(raw || "{}").state?.gameId;
+    localStorage.setItem("preferans.autosave.v1", raw);
+    localStorage.setItem("preferans.autosave.primary.v1", raw);
+    localStorage.setItem("preferans.autosave.primaryGameId.v1", gameId);
     localStorage.setItem("preferans.autosave.lastSharedGameId.v1", gameId);
     return gameId;
   });

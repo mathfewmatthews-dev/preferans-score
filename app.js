@@ -165,6 +165,12 @@ const SHARED_AUTOSAVE_PREFIX = `${AUTOSAVE_KEY}.shared.`;
 const PRIMARY_GAME_ID_KEY = "preferans.autosave.primaryGameId.v1";
 const PRIMARY_AUTOSAVE_BACKUP_KEY = "preferans.autosave.primary.v1";
 const LAST_SHARED_GAME_ID_KEY = "preferans.autosave.lastSharedGameId.v1";
+const APP_ROOT_URL = (() => {
+  const url = new URL("./", window.location.href);
+  url.search = "";
+  url.hash = "";
+  return url;
+})();
 const TABLE_IMAGE_DB_NAME = "preferans.table-image.v1";
 const TABLE_IMAGE_STORE = "assets";
 const TABLE_IMAGE_KEY = "tableBackground";
@@ -348,10 +354,13 @@ function initialize() {
   setupRemoteSync();
   const urlGameId = getUrlGameId();
   activeSharedGameId = urlGameId || null;
-  if (activeSharedGameId) storeLastSharedGameId(activeSharedGameId);
-  autosaveRestoreStatus = activeSharedGameId && remoteAvailable
-    ? ""
-    : restoreAutosavedGame(activeSharedGameId);
+  if (activeSharedGameId) {
+    storeLastSharedGameId(activeSharedGameId);
+    setGameUrl(activeSharedGameId);
+  }
+  autosaveRestoreStatus = activeSharedGameId
+    ? restoreAutosavedGame(activeSharedGameId)
+    : prepareMainLanding();
   renderConventionOptions();
   syncControlsFromState();
   renderConventionPanel();
@@ -361,7 +370,8 @@ function initialize() {
   renderRoundRows();
   refresh();
   installUiBackGuard();
-  if (urlGameId && autosaveRestoreStatus !== "restored") loadRemoteGame(urlGameId);
+  if (urlGameId && autosaveRestoreStatus === "restored") subscribeRemoteGame(urlGameId);
+  else if (urlGameId) loadRemoteGame(urlGameId);
   if (autosaveRestoreStatus === "failed") showMessage("Не удалось восстановить автосохранение.");
 }
 
@@ -673,6 +683,24 @@ function renderConventionOptions() {
     el.conventionModalSelect.disabled = false;
   }
   state.convention = value;
+}
+
+function prepareMainLanding() {
+  try {
+    const primary = localStorage.getItem(AUTOSAVE_KEY);
+    const backup = localStorage.getItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
+    [[primary, autosaveGameId(primary)], [backup, autosaveGameId(backup)]].forEach(([raw, gameId]) => {
+      if (!raw || !gameId) return;
+      const key = sharedAutosaveKey(gameId);
+      if (!localStorage.getItem(key)) localStorage.setItem(key, raw);
+    });
+    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.removeItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
+    storePrimaryGameId(null);
+    return "";
+  } catch (error) {
+    return "failed";
+  }
 }
 
 function autosaveGameId(raw) {
@@ -1598,7 +1626,6 @@ function syncControlsFromState() {
 
 // Game lifecycle and local state mutations
 function startGame() {
-  activeSharedGameId = null;
   const inputs = [...document.querySelectorAll("[data-player-name]")];
   if (!currentConvention().name.trim()) {
     showMessage("Укажите название конвенции.");
@@ -1636,9 +1663,11 @@ function startGame() {
   state.history = [];
   state.gameId = generateGameToken();
   state.remoteUpdatedAt = Date.now();
+  activeSharedGameId = state.gameId;
+  storeLastSharedGameId(activeSharedGameId);
   undoStack = [];
   redoStack = [];
-  clearGameUrl();
+  setGameUrl(activeSharedGameId);
   document.body.classList.add("game-started");
   closeConventionModal();
   applyTheme();
@@ -4116,8 +4145,14 @@ function loadGame(event) {
       undoStack = [];
       redoStack = [];
       document.body.classList.add("game-started");
-      clearGameUrl();
-      if (state.gameId) subscribeRemoteGame(state.gameId);
+      activeSharedGameId = normalizeGameId(state.gameId);
+      if (activeSharedGameId) {
+        storeLastSharedGameId(activeSharedGameId);
+        setGameUrl(activeSharedGameId);
+        subscribeRemoteGame(activeSharedGameId);
+      } else {
+        clearGameUrl();
+      }
       closeConventionModal();
   renderConventionOptions();
       el.convention.value = state.convention;
@@ -4200,7 +4235,7 @@ function generateGameToken() {
 
 function setGameUrl(gameId) {
   if (!gameId || !window.history?.replaceState) return;
-  const url = new URL(window.location.href);
+  const url = new URL("game/", APP_ROOT_URL);
   url.searchParams.set("game", gameId);
   window.history.replaceState({ ...(window.history.state || {}) }, "", url);
   uiBackGuardUrl = window.location.href;
@@ -4208,8 +4243,7 @@ function setGameUrl(gameId) {
 
 function clearGameUrl() {
   if (!window.history?.replaceState) return;
-  const url = new URL(window.location.href);
-  url.searchParams.delete("game");
+  const url = new URL(APP_ROOT_URL);
   window.history.replaceState({ ...(window.history.state || {}) }, "", (url.pathname + url.search + url.hash) || ".");
   uiBackGuardUrl = window.location.href;
 }
@@ -4394,10 +4428,9 @@ function remoteSaveErrorMessage(error) {
 
 function currentGameUrl() {
   if (!state.gameId) return window.location.href;
-  const appUrl = window.location.protocol === "file:"
-    ? "https://mathfewmatthews-dev.github.io/preferans-score/"
-    : `${window.location.origin}${window.location.pathname}`;
-  const url = new URL("game/", new URL("./", appUrl));
+  const url = window.location.protocol === "file:"
+    ? new URL("game/", "https://preferans-score.online/")
+    : new URL("game/", APP_ROOT_URL);
   url.searchParams.set("game", state.gameId);
   return url.href;
 }
