@@ -167,6 +167,8 @@ test("mobile browser Back closes a record modal after unwinding every route step
   await page.setViewportSize({ width: 390, height: 844 });
   await openCleanApp(page);
   await startGame(page);
+  const localGameUrl = page.url();
+  expect(localGameUrl).not.toContain("?game=");
   const browserBack = async () => {
     await page.evaluate(() => window.history.back());
   };
@@ -209,7 +211,7 @@ test("mobile browser Back closes a record modal after unwinding every route step
     window.history.back();
   });
   await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
-  await expect.poll(() => page.url()).toContain("?game=");
+  await expect.poll(() => page.url()).toBe(localGameUrl);
 });
 
 test("opacity ranges use the full track at 0, 50 and 100 percent", async ({ page }) => {
@@ -556,11 +558,18 @@ test("metadata and social preview describe the public app", async ({ page, reque
   const image = await imageResponse.body();
   expect(image.readUInt32BE(16)).toBe(1200);
   expect(image.readUInt32BE(20)).toBe(630);
+
+  const manifestResponse = await request.get("/manifest.webmanifest");
+  expect(manifestResponse.ok()).toBe(true);
+  const manifest = await manifestResponse.json();
+  expect(manifest.id).toBe("./");
+  expect(manifest.start_url).toBe(".");
+  expect(manifest.launch_handler).toEqual({ client_mode: "navigate-existing" });
 });
 
 test("shared games use their own preview page and return to the synchronized app", async ({ page, context, request }) => {
   const gameId = "ABCDEFGHIJKLMNOP";
-  const landingResponse = await request.get(`/game.html?game=${gameId}`);
+  const landingResponse = await request.get(`/game/?game=${gameId}`);
   expect(landingResponse.ok()).toBe(true);
   const landingHtml = await landingResponse.text();
   expect(landingHtml).toContain('<meta property="og:title" content="Подключиться к общей партии">');
@@ -574,21 +583,22 @@ test("shared games use their own preview page and return to the synchronized app
   expect(image.readUInt32BE(16)).toBe(1200);
   expect(image.readUInt32BE(20)).toBe(630);
 
-  await page.goto(`/game.html?game=${gameId}`);
+  await page.goto(`/game/?game=${gameId}`);
   await expect(page).toHaveURL(new RegExp(`[?&]game=${gameId}(?:$|[&#])`));
-  expect(new URL(page.url()).pathname).not.toContain("game.html");
+  expect(new URL(page.url()).pathname).not.toContain("/game/");
 
   await openCleanApp(page);
   await startGame(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.locator("#floatingShareButton").click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/game\.html\?game=[A-Za-z0-9_-]{16,64}$/);
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/game\/\?game=[A-Za-z0-9_-]{16,64}$/);
 });
 
-test("opening a shared game does not replace the main app autosave", async ({ page }) => {
+test("opening the main address in a new tab keeps a shared game isolated", async ({ page, context }) => {
   await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
   await openCleanApp(page);
   await startGame(page);
+  await expect(page).not.toHaveURL(/[?&]game=/);
   await expect(page.locator(".score-table-card")).toContainText("Анна");
 
   const sharedGameId = "SHAREDGAME123456";
@@ -604,10 +614,80 @@ test("opening a shared game does not replace the main app autosave", async ({ pa
   await expect(page.locator("body")).toHaveClass(/game-started/);
   await expect(page.locator(".score-table-card")).toContainText("Общий 1");
 
+  const mainPage = await context.newPage();
+  await mainPage.goto("/");
+  await expect(mainPage.locator("body")).toHaveClass(/game-started/);
+  await expect(mainPage.locator(".score-table-card")).toContainText("Анна");
+  await expect(mainPage).not.toHaveURL(/[?&]game=/);
+
+  await expect(page).toHaveURL(new RegExp(`[?&]game=${sharedGameId}(?:$|[&#])`));
+  await expect(page.locator(".score-table-card")).toContainText("Общий 1");
+});
+
+test("the main address repairs a shared-game autosave from the primary backup", async ({ page }) => {
+  await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
+  await openCleanApp(page);
+  await startGame(page);
+
+  const saved = await page.evaluate(() => ({
+    primary: localStorage.getItem("preferans.autosave.v1"),
+    backup: localStorage.getItem("preferans.autosave.primary.v1"),
+    primaryId: localStorage.getItem("preferans.autosave.primaryGameId.v1")
+  }));
+  expect(saved.primary).toBeTruthy();
+  expect(saved.backup).toBe(saved.primary);
+  expect(saved.primaryId).toBeTruthy();
+
+  const sharedGameId = "CONTAMINATED1234";
+  await page.evaluate(({ sharedGameId }) => {
+    const polluted = JSON.parse(localStorage.getItem("preferans.autosave.v1") || "{}");
+    polluted.state.gameId = sharedGameId;
+    polluted.state.players = ["Общий 1", "Общий 2", "Общий 3"];
+    localStorage.setItem("preferans.autosave.v1", JSON.stringify(polluted));
+  }, { sharedGameId });
+
   await page.goto("/");
+  await expect(page).not.toHaveURL(/[?&]game=/);
   await expect(page.locator("body")).toHaveClass(/game-started/);
   await expect(page.locator(".score-table-card")).toContainText("Анна");
+  const repaired = await page.evaluate((gameId) => ({
+    main: localStorage.getItem("preferans.autosave.v1"),
+    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`)
+  }), sharedGameId);
+  expect(repaired.main).toBe(saved.backup);
+  expect(repaired.shared).toContain("Общий 1");
+});
+
+test("the main address rejects a legacy shared game marked as the primary autosave", async ({ page }) => {
+  const sharedGameId = "MARKEDSHARED1234";
+  await page.goto("/");
+  await page.evaluate((gameId) => {
+    localStorage.setItem("preferans.autosave.primaryGameId.v1", gameId);
+    localStorage.setItem("preferans.autosave.lastSharedGameId.v1", gameId);
+    localStorage.removeItem("preferans.autosave.primary.v1");
+    localStorage.setItem("preferans.autosave.v1", JSON.stringify({
+      started: true,
+      state: {
+        gameId,
+        players: ["Общий 1", "Общий 2", "Общий 3"],
+        pool: [0, 0, 0],
+        mountain: [0, 0, 0],
+        whists: [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+      }
+    }));
+  }, sharedGameId);
+
+  await page.goto("/");
   await expect(page).not.toHaveURL(/[?&]game=/);
+  await expect(page.locator("body")).not.toHaveClass(/game-started/);
+  const repaired = await page.evaluate((gameId) => ({
+    main: localStorage.getItem("preferans.autosave.v1"),
+    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`),
+    primaryId: localStorage.getItem("preferans.autosave.primaryGameId.v1")
+  }), sharedGameId);
+  expect(repaired.main).toBeNull();
+  expect(repaired.shared).toContain("Общий 1");
+  expect(repaired.primaryId).toBeNull();
 });
 
 test("legacy shared autosave no longer makes the main address reopen that game", async ({ page }) => {

@@ -1,8 +1,9 @@
-const CACHE_NAME = "preference-pwa-v79";
+const CACHE_NAME = "preference-pwa-v81";
 const APP_SHELL = [
   "./",
   "index.html",
   "game.html",
+  "game/",
   "styles.css",
   "app.js",
   "qr-creator.js",

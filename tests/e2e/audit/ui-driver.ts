@@ -3,7 +3,11 @@ import type { ActualSnapshot, ContractRecord } from "./audit-types";
 
 export async function openCleanApp(page: Page) {
   await page.goto("/");
-  await page.evaluate(() => localStorage.removeItem("preferans.autosave.v1"));
+  await page.evaluate(() => {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("preferans.autosave."))
+      .forEach((key) => localStorage.removeItem(key));
+  });
   await page.reload();
   await expect(page.locator("#startButton")).toBeVisible();
 }

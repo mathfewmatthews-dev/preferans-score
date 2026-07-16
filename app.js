@@ -163,6 +163,8 @@ const FIXED_GAME_VALUES = {
 const AUTOSAVE_KEY = "preferans.autosave.v1";
 const SHARED_AUTOSAVE_PREFIX = `${AUTOSAVE_KEY}.shared.`;
 const PRIMARY_GAME_ID_KEY = "preferans.autosave.primaryGameId.v1";
+const PRIMARY_AUTOSAVE_BACKUP_KEY = "preferans.autosave.primary.v1";
+const LAST_SHARED_GAME_ID_KEY = "preferans.autosave.lastSharedGameId.v1";
 const TABLE_IMAGE_DB_NAME = "preferans.table-image.v1";
 const TABLE_IMAGE_STORE = "assets";
 const TABLE_IMAGE_KEY = "tableBackground";
@@ -345,7 +347,8 @@ function initialize() {
   registerServiceWorker();
   setupRemoteSync();
   const urlGameId = getUrlGameId();
-  activeSharedGameId = urlGameId && urlGameId !== storedPrimaryGameId() ? urlGameId : null;
+  activeSharedGameId = urlGameId || null;
+  if (activeSharedGameId) storeLastSharedGameId(activeSharedGameId);
   autosaveRestoreStatus = activeSharedGameId && remoteAvailable
     ? ""
     : restoreAutosavedGame(activeSharedGameId);
@@ -540,8 +543,14 @@ function saveAutosavedGame() {
   if (!gameStarted()) return;
   if (!applyingRemoteState) state.remoteUpdatedAt = Date.now();
   try {
-    if (!activeSharedGameId) storePrimaryGameId(state.gameId);
-    localStorage.setItem(currentAutosaveKey(), JSON.stringify({ started: true, state }));
+    const serialized = JSON.stringify({ started: true, state });
+    if (activeSharedGameId) {
+      localStorage.setItem(currentAutosaveKey(), serialized);
+    } else {
+      storePrimaryGameId(state.gameId);
+      localStorage.setItem(AUTOSAVE_KEY, serialized);
+      localStorage.setItem(PRIMARY_AUTOSAVE_BACKUP_KEY, serialized);
+    }
   } catch (error) {
     // Local storage can be unavailable in some privacy modes; manual save still works.
   }
@@ -551,7 +560,10 @@ function saveAutosavedGame() {
 function clearAutosavedGame() {
   try {
     localStorage.removeItem(currentAutosaveKey());
-    if (!activeSharedGameId) storePrimaryGameId(null);
+    if (!activeSharedGameId) {
+      localStorage.removeItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
+      storePrimaryGameId(null);
+    }
   } catch (error) {
     // Ignore storage failures; this should never block the UI.
   }
@@ -561,13 +573,37 @@ function restoreAutosavedGame(expectedGameId = null) {
   try {
     const key = expectedGameId ? sharedAutosaveKey(expectedGameId) : AUTOSAVE_KEY;
     let raw = localStorage.getItem(key);
+    let primaryGameId = storedPrimaryGameId();
+    const primaryBackup = localStorage.getItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
+    const backupGameId = autosaveGameId(primaryBackup);
+    const rawGameId = autosaveGameId(raw);
+    const lastSharedGameId = storedLastSharedGameId();
+    if (!expectedGameId && raw && rawGameId && rawGameId === lastSharedGameId && backupGameId !== rawGameId) {
+      localStorage.setItem(sharedAutosaveKey(rawGameId), raw);
+      localStorage.removeItem(AUTOSAVE_KEY);
+      raw = null;
+      primaryGameId = backupGameId;
+      storePrimaryGameId(primaryGameId);
+    }
+    if (!expectedGameId && primaryGameId && raw && autosaveGameId(raw) !== primaryGameId) {
+      const contaminatedGameId = autosaveGameId(raw);
+      if (contaminatedGameId) localStorage.setItem(sharedAutosaveKey(contaminatedGameId), raw);
+      localStorage.removeItem(AUTOSAVE_KEY);
+      raw = null;
+    }
+    if (!expectedGameId && primaryGameId && !raw) {
+      if (primaryBackup && backupGameId === primaryGameId) {
+        raw = primaryBackup;
+        localStorage.setItem(AUTOSAVE_KEY, primaryBackup);
+      }
+    }
     if (!raw && expectedGameId) {
       const legacyRaw = localStorage.getItem(AUTOSAVE_KEY);
       const legacy = legacyRaw ? JSON.parse(legacyRaw) : null;
       if (normalizeGameId(legacy?.state?.gameId) === expectedGameId) {
         raw = legacyRaw;
         localStorage.setItem(key, legacyRaw);
-        localStorage.removeItem(AUTOSAVE_KEY);
+        if (primaryGameId !== expectedGameId) localStorage.removeItem(AUTOSAVE_KEY);
       }
     }
     if (!raw) return "";
@@ -638,6 +674,14 @@ function renderConventionOptions() {
   state.convention = value;
 }
 
+function autosaveGameId(raw) {
+  try {
+    return normalizeGameId(JSON.parse(raw || "null")?.state?.gameId);
+  } catch (error) {
+    return null;
+  }
+}
+
 function sharedAutosaveKey(gameId) {
   return `${SHARED_AUTOSAVE_PREFIX}${normalizeGameId(gameId) || "unknown"}`;
 }
@@ -661,6 +705,23 @@ function storePrimaryGameId(gameId) {
     else localStorage.removeItem(PRIMARY_GAME_ID_KEY);
   } catch (error) {
     // Storage may be unavailable in private browsing; autosave already handles that case.
+  }
+}
+
+function storedLastSharedGameId() {
+  try {
+    return normalizeGameId(localStorage.getItem(LAST_SHARED_GAME_ID_KEY));
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeLastSharedGameId(gameId) {
+  try {
+    const normalized = normalizeGameId(gameId);
+    if (normalized) localStorage.setItem(LAST_SHARED_GAME_ID_KEY, normalized);
+  } catch (error) {
+    // Shared-link tracking is only a repair hint and must not block loading.
   }
 }
 
@@ -1576,7 +1637,7 @@ function startGame() {
   state.remoteUpdatedAt = Date.now();
   undoStack = [];
   redoStack = [];
-  setGameUrl(state.gameId);
+  clearGameUrl();
   document.body.classList.add("game-started");
   closeConventionModal();
   applyTheme();
@@ -4054,10 +4115,8 @@ function loadGame(event) {
       undoStack = [];
       redoStack = [];
       document.body.classList.add("game-started");
-      if (state.gameId) {
-        setGameUrl(state.gameId);
-        subscribeRemoteGame(state.gameId);
-      }
+      clearGameUrl();
+      if (state.gameId) subscribeRemoteGame(state.gameId);
       closeConventionModal();
   renderConventionOptions();
       el.convention.value = state.convention;
@@ -4333,12 +4392,11 @@ function remoteSaveErrorMessage(error) {
 }
 
 function currentGameUrl() {
-  if (state.gameId) setGameUrl(state.gameId);
   if (!state.gameId) return window.location.href;
   const appUrl = window.location.protocol === "file:"
     ? "https://mathfewmatthews-dev.github.io/preferans-score/"
     : `${window.location.origin}${window.location.pathname}`;
-  const url = new URL("game.html", new URL("./", appUrl));
+  const url = new URL("game/", new URL("./", appUrl));
   url.searchParams.set("game", state.gameId);
   return url.href;
 }

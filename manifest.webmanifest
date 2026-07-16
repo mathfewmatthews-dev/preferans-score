@@ -5,6 +5,10 @@
   "lang": "ru",
   "start_url": ".",
   "scope": ".",
+  "id": "./",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
