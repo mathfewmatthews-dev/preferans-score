@@ -565,6 +565,17 @@ test("metadata and social preview describe the public app", async ({ page, reque
   expect(manifest.id).toBe("./");
   expect(manifest.start_url).toBe(".");
   expect(manifest.launch_handler).toEqual({ client_mode: "navigate-new" });
+
+  const requestedUrls: string[] = [];
+  page.on("request", (request) => requestedUrls.push(request.url()));
+  await page.goto("/game/?game=ABCDEFGHIJKLMNOP");
+  await page.waitForLoadState("networkidle");
+  const gameMetadata = await page.evaluate(() => ({
+    manifest: document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.getAttribute("href")
+  }));
+  expect(gameMetadata.manifest).toBe("/manifest.webmanifest");
+  expect(requestedUrls.some((url) => url.includes("/game/manifest.webmanifest"))).toBe(false);
+  expect(requestedUrls.some((url) => url.includes("/game/sw.js"))).toBe(false);
 });
 
 test("shared games use their own preview page and return to the synchronized app", async ({ page, context, request }) => {

@@ -2134,7 +2134,7 @@ function registerServiceWorker() {
   const local = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   if (protocol !== "https:" && !local) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
 function closeColorSettings() {
