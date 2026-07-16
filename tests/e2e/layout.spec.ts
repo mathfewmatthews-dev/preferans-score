@@ -690,6 +690,33 @@ test("the main address rejects a legacy shared game marked as the primary autosa
   expect(repaired.primaryId).toBeNull();
 });
 
+test("the main address rejects a shared game even when its primary backup is also polluted", async ({ page }) => {
+  await openCleanApp(page);
+  await startGame(page);
+
+  const sharedGameId = await page.evaluate(() => {
+    const raw = localStorage.getItem("preferans.autosave.v1");
+    const gameId = JSON.parse(raw || "{}").state?.gameId;
+    localStorage.setItem("preferans.autosave.lastSharedGameId.v1", gameId);
+    return gameId;
+  });
+  expect(sharedGameId).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+
+  await page.goto("/");
+  await expect(page).not.toHaveURL(/[?&]game=/);
+  await expect(page.locator("body")).not.toHaveClass(/game-started/);
+  const repaired = await page.evaluate((gameId) => ({
+    main: localStorage.getItem("preferans.autosave.v1"),
+    backup: localStorage.getItem("preferans.autosave.primary.v1"),
+    shared: localStorage.getItem(`preferans.autosave.v1.shared.${gameId}`),
+    primaryId: localStorage.getItem("preferans.autosave.primaryGameId.v1")
+  }), sharedGameId);
+  expect(repaired.main).toBeNull();
+  expect(repaired.backup).toBeNull();
+  expect(repaired.shared).toContain(sharedGameId);
+  expect(repaired.primaryId).toBeNull();
+});
+
 test("legacy shared autosave no longer makes the main address reopen that game", async ({ page }) => {
   const sharedGameId = "LEGACYSHARED1234";
   await page.goto("/");

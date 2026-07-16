@@ -578,11 +578,12 @@ function restoreAutosavedGame(expectedGameId = null) {
     const backupGameId = autosaveGameId(primaryBackup);
     const rawGameId = autosaveGameId(raw);
     const lastSharedGameId = storedLastSharedGameId();
-    if (!expectedGameId && raw && rawGameId && rawGameId === lastSharedGameId && backupGameId !== rawGameId) {
+    if (!expectedGameId && raw && rawGameId && rawGameId === lastSharedGameId) {
       localStorage.setItem(sharedAutosaveKey(rawGameId), raw);
       localStorage.removeItem(AUTOSAVE_KEY);
+      if (backupGameId === rawGameId) localStorage.removeItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
       raw = null;
-      primaryGameId = backupGameId;
+      primaryGameId = primaryGameId === rawGameId ? null : primaryGameId;
       storePrimaryGameId(primaryGameId);
     }
     if (!expectedGameId && primaryGameId && raw && autosaveGameId(raw) !== primaryGameId) {
