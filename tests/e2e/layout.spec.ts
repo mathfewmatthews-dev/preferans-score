@@ -671,6 +671,62 @@ test("two games stay open under different URLs at the same time", async ({ page,
   expect((await snapshot(reopenedSecond)).mountain[0]).toBe(2);
 });
 
+test("a newer shared autosave survives an older Firestore snapshot after reload", async ({ page }) => {
+  const firebasePattern = "https://www.gstatic.com/firebasejs/**";
+  await page.route(firebasePattern, (route) => route.abort());
+  await openCleanApp(page);
+  await startGame(page);
+  await recordManual(page, 0, "Гора", 5);
+  const gameUrl = page.url();
+  const gameId = new URL(gameUrl).searchParams.get("game");
+  expect(gameId).toBeTruthy();
+
+  await page.unroute(firebasePattern);
+  await page.route(firebasePattern, (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: `
+      if (!window.firebase) {
+        const gameId = new URL(location.href).searchParams.get("game");
+        const local = JSON.parse(localStorage.getItem("preferans.autosave.v1.shared." + gameId));
+        const remote = structuredClone(local.state);
+        remote.mountain[0] = 0;
+        remote.history = [];
+        remote.remoteUpdatedAt = Math.max(1, Number(local.state.remoteUpdatedAt) - 10000);
+        window.__remoteWrites = [];
+        let remoteState = remote;
+        const ref = {
+          get: async () => ({ exists: true, data: () => ({ stateJson: JSON.stringify(remoteState) }) }),
+          set: async (value) => {
+            window.__remoteWrites.push(value);
+            remoteState = JSON.parse(value.stateJson);
+          },
+          onSnapshot: (next) => {
+            setTimeout(() => next({ exists: true, data: () => ({ stateJson: JSON.stringify(remoteState) }) }), 0);
+            return () => {};
+          }
+        };
+        const db = { settings() {}, collection: () => ({ doc: () => ref }) };
+        const firestore = () => db;
+        firestore.FieldValue = { serverTimestamp: () => Date.now() };
+        window.firebase = {
+          apps: [],
+          initializeApp() { this.apps.push({}); },
+          firestore
+        };
+      }
+    `
+  }));
+
+  await page.goto(gameUrl);
+  await expect.poll(async () => (await snapshot(page)).mountain[0]).toBe(5);
+  await expect.poll(() => page.evaluate(() => (window as any).__remoteWrites?.length || 0)).toBeGreaterThan(0);
+  const uploadedMountain = await page.evaluate(() => {
+    const writes = (window as any).__remoteWrites;
+    return JSON.parse(writes.at(-1).stateJson).mountain[0];
+  });
+  expect(uploadedMountain).toBe(5);
+});
+
 test("the main address archives legacy primary and polluted autosaves without opening a game", async ({ page }) => {
   await page.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
   await openCleanApp(page);

@@ -4297,7 +4297,15 @@ function subscribeRemoteGame(gameId = state.gameId) {
     const remoteState = remoteStateFromSnapshot(snapshot.data() || {});
     if (!remoteState) return;
     const normalized = normalizeState(remoteState);
-    if (normalized.remoteUpdatedAt && normalized.remoteUpdatedAt === state.remoteUpdatedAt) return;
+    const remoteUpdatedAt = Number(normalized.remoteUpdatedAt || 0);
+    const localUpdatedAt = Number(state.remoteUpdatedAt || 0);
+    if (remoteUpdatedAt && remoteUpdatedAt === localUpdatedAt) return;
+    if (localUpdatedAt && localUpdatedAt > remoteUpdatedAt) {
+      // A failed Firestore write must not let an older server snapshot erase a
+      // newer autosave after reload. Keep the local game and retry its upload.
+      queueRemoteSave();
+      return;
+    }
     applyingRemoteState = true;
     applyRemoteGameState(remoteState, gameId);
     applyingRemoteState = false;
