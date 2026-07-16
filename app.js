@@ -194,6 +194,7 @@ let conventionEditSnapshot = null;
 let pendingAppConfirmation = null;
 let uiBackGuardUrl = "";
 let uiBackGuardInstalled = false;
+let uiBackExitInProgress = false;
 let remoteDb = null;
 let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
@@ -1872,16 +1873,36 @@ function installUiBackGuard() {
   if (uiBackGuardInstalled || !window.history?.pushState) return;
   uiBackGuardInstalled = true;
   uiBackGuardUrl = window.location.href;
-  window.history.pushState({ ...(window.history.state || {}), preferansUiGuard: true }, "", uiBackGuardUrl);
+  window.history.replaceState({ ...(window.history.state || {}), preferansUiGuardDepth: 0 }, "", uiBackGuardUrl);
+  window.history.pushState({ ...(window.history.state || {}), preferansUiGuardDepth: 1 }, "", uiBackGuardUrl);
+  window.history.pushState({ ...(window.history.state || {}), preferansUiGuardDepth: 2 }, "", uiBackGuardUrl);
   window.addEventListener("popstate", handleUiBrowserBack);
 }
 
 function handleUiBrowserBack() {
-  if (!consumeTopUiLayer()) {
+  const depth = Number(window.history.state?.preferansUiGuardDepth || 0);
+  if (uiBackExitInProgress) {
+    uiBackExitInProgress = false;
     window.history.back();
     return;
   }
-  window.history.pushState({ ...(window.history.state || {}), preferansUiGuard: true }, "", uiBackGuardUrl || window.location.href);
+  if (consumeTopUiLayer()) {
+    rearmUiBackGuard(depth);
+    return;
+  }
+  if (depth === 0) {
+    rearmUiBackGuard(0);
+    return;
+  }
+  uiBackExitInProgress = true;
+  window.history.back();
+}
+
+function rearmUiBackGuard(currentDepth = 0) {
+  const url = uiBackGuardUrl || window.location.href;
+  for (let depth = Math.max(0, currentDepth) + 1; depth <= 2; depth += 1) {
+    window.history.pushState({ ...(window.history.state || {}), preferansUiGuardDepth: depth }, "", url);
+  }
 }
 
 function consumeTopUiLayer() {
@@ -4121,7 +4142,7 @@ function setGameUrl(gameId) {
   if (!gameId || !window.history?.replaceState) return;
   const url = new URL(window.location.href);
   url.searchParams.set("game", gameId);
-  window.history.replaceState({}, "", url);
+  window.history.replaceState({ ...(window.history.state || {}) }, "", url);
   uiBackGuardUrl = window.location.href;
 }
 
@@ -4129,7 +4150,7 @@ function clearGameUrl() {
   if (!window.history?.replaceState) return;
   const url = new URL(window.location.href);
   url.searchParams.delete("game");
-  window.history.replaceState({}, "", (url.pathname + url.search + url.hash) || ".");
+  window.history.replaceState({ ...(window.history.state || {}) }, "", (url.pathname + url.search + url.hash) || ".");
   uiBackGuardUrl = window.location.href;
 }
 

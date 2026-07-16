@@ -163,6 +163,55 @@ test("mobile browser Back consumes wizard steps, modals and menu before leaving"
   await expect.poll(() => page.url()).toBe("about:blank");
 });
 
+test("mobile browser Back closes a record modal after unwinding every route step", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCleanApp(page);
+  await startGame(page);
+  const browserBack = async () => {
+    await page.evaluate(() => window.history.back());
+  };
+
+  await page.locator("#floatingRecordButton").click();
+  await expect(page.locator("#recordTitle")).toHaveText("Тип записи");
+  await browserBack();
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+
+  await page.locator("#floatingRecordButton").click();
+  await page.locator('[data-type="Взятки"]').click();
+  await page.locator("#nextStepButton").click();
+  await expect(page.locator("#recordTitle")).toHaveText("Висты и взятки");
+
+  await browserBack();
+  await expect(page.locator("#recordTitle")).toHaveText("Кто играет");
+  await browserBack();
+  await expect(page.locator("#recordTitle")).toHaveText("Тип записи");
+  await browserBack();
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+
+  await page.locator("#floatingRecordButton").click();
+  await page.locator('[data-type="Мизер"]').click();
+  await page.locator("#nextStepButton").click();
+  await page.locator("#nextStepButton").click();
+  await expect(page.locator("#recordTitle")).toHaveText("Взятки в мизере");
+
+  for (const title of ["Карты мизера", "Кто играет", "Тип записи"]) {
+    await browserBack();
+    await expect(page.locator("#recordTitle")).toHaveText(title);
+    await expect(page.locator("#recordModal")).toHaveClass(/open/);
+  }
+  await browserBack();
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+
+  await page.locator("#floatingRecordButton").click();
+  await expect(page.locator("#recordTitle")).toHaveText("Тип записи");
+  await page.evaluate(() => {
+    window.history.back();
+    window.history.back();
+  });
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+  await expect.poll(() => page.url()).toContain("?game=");
+});
+
 test("opacity ranges use the full track at 0, 50 and 100 percent", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openCleanApp(page);
