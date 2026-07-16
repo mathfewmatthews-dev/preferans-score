@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { openCleanApp, recordManual, startGame } from "./audit/ui-driver";
+import { openCleanApp, recordManual, snapshot, startGame } from "./audit/ui-driver";
 
 const DESKTOP_HEIGHT = 1080;
 
@@ -564,7 +564,7 @@ test("metadata and social preview describe the public app", async ({ page, reque
   const manifest = await manifestResponse.json();
   expect(manifest.id).toBe("./");
   expect(manifest.start_url).toBe(".");
-  expect(manifest.launch_handler).toEqual({ client_mode: "navigate-existing" });
+  expect(manifest.launch_handler).toEqual({ client_mode: "navigate-new" });
 });
 
 test("shared games use their own preview page and return to the synchronized app", async ({ page, context, request }) => {
@@ -623,6 +623,41 @@ test("opening the main address in a new tab keeps a shared game isolated", async
 
   await expect(page).toHaveURL(new RegExp(`[?&]game=${sharedGameId}(?:$|[&#])`));
   await expect(page.locator(".score-table-card")).toContainText("Общий 1");
+});
+
+test("two games stay open under different URLs at the same time", async ({ page, context }) => {
+  await context.route("https://www.gstatic.com/firebasejs/**", (route) => route.abort());
+  await openCleanApp(page);
+  await startGame(page);
+  await recordManual(page, 0, "Гора", 1);
+  const firstGameUrl = page.url();
+  const firstGameId = new URL(firstGameUrl).searchParams.get("game");
+
+  const secondPage = await context.newPage();
+  await secondPage.goto("/");
+  await expect(secondPage.locator("body")).not.toHaveClass(/game-started/);
+  await startGame(secondPage, "Сочи", 3);
+  await recordManual(secondPage, 0, "Гора", 2);
+  const secondGameUrl = secondPage.url();
+  const secondGameId = new URL(secondGameUrl).searchParams.get("game");
+
+  expect(firstGameId).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+  expect(secondGameId).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+  expect(secondGameId).not.toBe(firstGameId);
+  await expect(page).toHaveURL(firstGameUrl);
+  await expect(secondPage).toHaveURL(secondGameUrl);
+
+  await page.close();
+  await secondPage.close();
+  const reopenedFirst = await context.newPage();
+  const reopenedSecond = await context.newPage();
+  await Promise.all([reopenedFirst.goto(firstGameUrl), reopenedSecond.goto(secondGameUrl)]);
+  await expect(reopenedFirst.locator("body")).toHaveClass(/game-started/);
+  await expect(reopenedSecond.locator("body")).toHaveClass(/game-started/);
+  expect((await snapshot(reopenedFirst)).gameId).toBe(firstGameId);
+  expect((await snapshot(reopenedFirst)).mountain[0]).toBe(1);
+  expect((await snapshot(reopenedSecond)).gameId).toBe(secondGameId);
+  expect((await snapshot(reopenedSecond)).mountain[0]).toBe(2);
 });
 
 test("the main address archives legacy primary and polluted autosaves without opening a game", async ({ page }) => {

@@ -2421,18 +2421,23 @@ function isPassOnlyContract(roles = getRoles()) {
   return defenders.length > 0 && defenders.every((role) => role === "Пас");
 }
 
+function isHalfWhistContract(roles = getRoles()) {
+  return el.gameType.value === "Взятки" && roles.includes("Полвиста");
+}
+
 function syncTrickPickerStates() {
   if (el.gameType.value === "Ручной ввод") return;
   const roles = getRoles();
   const declarer = Number(el.declarer.value || 0);
   const passOnly = isPassOnlyContract(roles);
+  const halfWhist = isHalfWhistContract(roles);
   roles.forEach((role, index) => {
     const picker = document.querySelector(`[data-picker="${index}"]`);
     if (!picker) return;
     const restingDisabled = role === "Отдыхает" && !restingTricksAllowed(role);
     const passOnlyDisabled = passOnly && index !== declarer && role === "Пас";
-    const disabled = restingDisabled || passOnlyDisabled;
-    picker.classList.toggle("tricks-skipped", passOnlyDisabled);
+    const disabled = restingDisabled || passOnlyDisabled || halfWhist;
+    picker.classList.toggle("tricks-skipped", passOnlyDisabled || halfWhist);
     picker.querySelectorAll("button").forEach((button) => {
       button.disabled = disabled;
     });
@@ -2478,8 +2483,8 @@ function addContract() {
   const tricks = getTricks();
   validateTrickSum(true);
 
-  const declarerTricks = tricks[declarer];
   const roles = getRoles();
+  const declarerTricks = isHalfWhistContract(roles) ? contract : tricks[declarer];
   const activeDefenders = [];
   const whisters = [];
   roles.forEach((role, index) => {
@@ -4928,6 +4933,7 @@ function updateTrickValidation() {
 function validateTrickSum(strict) {
   if (el.gameType.value === "Ручной ввод") return true;
   if (isPassOnlyContract()) return true;
+  if (isHalfWhistContract()) return true;
   const active = activeTrickIndices();
   const total = sum(active.map((index) => Number(document.querySelector(`[data-tricks="${index}"]`).value || 0)));
   if (total === 10) return true;

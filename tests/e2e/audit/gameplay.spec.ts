@@ -38,6 +38,28 @@ test("Сочи: контракты 6–10, журнал и undo/redo", async ({ 
   });
 });
 
+test("Полвиста: контракт записывается без ввода взяток", async ({ page }) => {
+  category("record-wizard");
+  await startGame(page, "Сочи", 3);
+  await page.locator("#floatingRecordButton").click();
+  await page.locator('[data-type="Взятки"]').click();
+  await page.locator('[data-declarer="0"]').click();
+  await page.locator('[data-contract="6"]').click();
+  await page.locator("#nextStepButton").click();
+  await page.locator('[data-role-button="1"][data-role="Полвиста"]').click();
+  await page.locator('[data-role-button="2"][data-role="Пас"]').click();
+
+  await expect(page.locator('[data-trick-button="0"][data-value="6"]')).toBeDisabled();
+  await expect(page.locator("#recordValidationMessage")).toBeEmpty();
+  await page.locator("#addButton").click();
+  await expect(page.locator("#recordModal")).not.toHaveClass(/open/);
+
+  const actual = await snapshot(page);
+  expect(actual.pool).toEqual([2, 0, 0]);
+  expect(actual.whists[1][0]).toBe(4);
+  expect(actual.history.at(-1)).toContain("6 взяток");
+});
+
 test("Питер: жлобский вист, ремиз и прогрессия 6-7-8", async ({ page }) => {
   category("progressions");
   await startGame(page, "Питер", 3);
