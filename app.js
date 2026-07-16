@@ -2375,6 +2375,7 @@ el.roundRows.addEventListener("click", (event) => {
     const group = document.querySelector(`[data-role-buttons="${index}"]`);
     input.value = roleButton.dataset.role;
     group.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button === roleButton));
+    syncExclusiveWhistRoles(index, input.value);
     updateRoleSideEffects(index, input.value);
     applyDefaultWhistTricks();
     syncTrickPickerStates();
@@ -2394,6 +2395,28 @@ el.roundRows.addEventListener("change", (event) => {
   updateRoleSideEffects(index, role.value);
   syncTrickPickerStates();
 });
+
+function setDefenderRole(index, role) {
+  const input = document.querySelector(`[data-role="${index}"]`);
+  const group = document.querySelector(`[data-role-buttons="${index}"]`);
+  if (!input || !group || !group.querySelector(`[data-role="${role}"]`)) return;
+  input.value = role;
+  group.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.role === role);
+  });
+  updateRoleSideEffects(index, role);
+}
+
+function syncExclusiveWhistRoles(changedIndex, role) {
+  if (el.gameType.value !== "Взятки") return;
+  const declarer = Number(el.declarer.value || 0);
+  getRoles().forEach((otherRole, index) => {
+    if (index === declarer || index === changedIndex || otherRole === "Отдыхает") return;
+    if (role === "Полвиста" || (role === "Вист" && otherRole === "Полвиста")) {
+      setDefenderRole(index, "Пас");
+    }
+  });
+}
 
 el.declarer.addEventListener("change", renderRoundRows);
 
@@ -4213,7 +4236,11 @@ function setupRemoteSync() {
   try {
     if (!window.firebase.apps.length) window.firebase.initializeApp(config);
     remoteDb = window.firebase.firestore();
-    remoteDb.settings({ ignoreUndefinedProperties: true });
+    remoteDb.settings({
+      ignoreUndefinedProperties: true,
+      experimentalAutoDetectLongPolling: true,
+      merge: true,
+    });
     remoteAvailable = true;
   } catch (error) {
     remoteAvailable = false;
@@ -4286,7 +4313,7 @@ async function loadRemoteGame(gameId) {
     return;
   }
   try {
-    const snapshot = await remoteGameRef(gameId).get();
+    const snapshot = await loadRemoteSnapshotWithRetry(gameId);
     if (!snapshot.exists) {
       showMessage("Игра по ссылке не найдена. Возможно, ссылка создана до подключения Firebase.");
       return;
@@ -4305,6 +4332,21 @@ async function loadRemoteGame(gameId) {
     console.warn("Remote game load failed", error);
     showMessage("Не удалось загрузить игру по ссылке. Проверьте Firestore и правила доступа.");
   }
+}
+
+async function loadRemoteSnapshotWithRetry(gameId, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await remoteGameRef(gameId).get();
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 < attempts) {
+        await new Promise((resolve) => window.setTimeout(resolve, 300 * (2 ** attempt)));
+      }
+    }
+  }
+  throw lastError || new Error("Remote game load failed");
 }
 
 function remoteGameState() {
