@@ -1,3 +1,9 @@
+import { canonicalJson, GAME_SCHEMA_VERSION, hashValue } from "./src/domain/game-event.ts";
+import { LocalGameRepository, createLocalEnvelope } from "./src/persistence/local-game-repository.ts";
+import { FirestoreGameRepository } from "./src/persistence/firestore-game-repository.ts";
+import { SyncCoordinator } from "./src/sync/sync-coordinator.ts";
+import { createLogger } from "./src/infrastructure/logger.ts";
+
 // State and convention defaults
 const DEFAULT_CLOTH_OPACITY = 100;
 const DEFAULT_TEXT_BACKDROP_OPACITY = 100;
@@ -204,6 +210,12 @@ let uiBackGuardUrl = "";
 let uiBackGuardInstalled = false;
 let uiBackExitInProgress = false;
 let remoteDb = null;
+let remoteRepository = null;
+let syncCoordinator = null;
+let lastStagedRemoteState = null;
+let restoredSyncMetadata = null;
+let localPersistenceQueue = Promise.resolve();
+let pendingRemoteCommand = { type: "settings-changed", payload: {} };
 let remoteUnsubscribe = null;
 let remoteSaveTimer = null;
 let applyingRemoteState = false;
@@ -211,12 +223,15 @@ let remoteAvailable = false;
 let tableImageObjectUrl = "";
 let tableImageLoaded = false;
 let activePaletteInput = null;
+const localGameRepository = new LocalGameRepository(localStorage, 50);
+const logger = createLogger(new URLSearchParams(window.location.search).has("debug"));
 
 
 const el = {
   appHeader: document.querySelector(".app-header"),
   mobileMenuButton: document.getElementById("mobileMenuButton"),
   headerActions: document.getElementById("headerActions"),
+  syncStatus: document.getElementById("syncStatus"),
   themeColorMeta: document.querySelector('meta[name="theme-color"]'),
   convention: document.getElementById("convention"),
   poolTarget: document.getElementById("poolTarget"),
@@ -549,9 +564,10 @@ function cloneConvention(convention) {
   return JSON.parse(JSON.stringify(convention));
 }
 
-function saveAutosavedGame() {
+function saveAutosavedGame(command = null) {
   if (!gameStarted()) return;
   if (!applyingRemoteState) state.remoteUpdatedAt = Date.now();
+  if (command) pendingRemoteCommand = command;
   try {
     const serialized = JSON.stringify({ started: true, state });
     if (activeSharedGameId) {
@@ -564,12 +580,33 @@ function saveAutosavedGame() {
   } catch (error) {
     // Local storage can be unavailable in some privacy modes; manual save still works.
   }
+  queueVersionedLocalSave();
   if (!applyingRemoteState) queueRemoteSave();
+}
+
+function queueVersionedLocalSave() {
+  const key = currentAutosaveKey();
+  const snapshotState = cloneState();
+  const revision = syncCoordinator?.currentSnapshot()?.revision || restoredSyncMetadata?.revision || 0;
+  const pendingEvents = syncCoordinator?.pendingEvents?.() || restoredSyncMetadata?.pendingEvents || [];
+  localPersistenceQueue = localPersistenceQueue.then(async () => {
+    const snapshot = {
+      schemaVersion: GAME_SCHEMA_VERSION,
+      gameId: snapshotState.gameId,
+      revision,
+      state: snapshotState,
+      stateHash: await hashValue(snapshotState),
+      updatedAt: Date.now(),
+    };
+    const envelope = await createLocalEnvelope(snapshot, pendingEvents);
+    localGameRepository.save(key, envelope);
+    if (!activeSharedGameId) localStorage.setItem(PRIMARY_AUTOSAVE_BACKUP_KEY, JSON.stringify(envelope));
+  }).catch((error) => logger.warn("Versioned local save failed", { reason: error?.message }));
 }
 
 function clearAutosavedGame() {
   try {
-    localStorage.removeItem(currentAutosaveKey());
+    localGameRepository.remove(currentAutosaveKey());
     if (!activeSharedGameId) {
       localStorage.removeItem(PRIMARY_AUTOSAVE_BACKUP_KEY);
       storePrimaryGameId(null);
@@ -620,6 +657,9 @@ function restoreAutosavedGame(expectedGameId = null) {
     if (!raw) return "";
     const parsed = JSON.parse(raw);
     if (!parsed?.started || !parsed.state) return "";
+    restoredSyncMetadata = parsed.schemaVersion === GAME_SCHEMA_VERSION
+      ? { revision: Number(parsed.revision || 0), stateHash: String(parsed.stateHash || ""), pendingEvents: Array.isArray(parsed.pendingEvents) ? parsed.pendingEvents : [] }
+      : null;
     if (!expectedGameId && !storedPrimaryGameId()) {
       const legacyGameId = normalizeGameId(parsed.state.gameId);
       if (legacyGameId) {
@@ -1050,7 +1090,7 @@ async function resetColorSettings() {
   state.textBackdropShadow = DEFAULT_TEXT_BACKDROP_SHADOW;
   await clearTableImage();
   applyTheme();
-  saveAutosavedGame();
+  saveAutosavedGame({ type: "settings-changed", payload: { area: "appearance-reset" } });
 }
 function bindTableImageControls() {
   if (!el.tableImageDropzone || !el.tableImageInput) return;
@@ -1675,7 +1715,7 @@ function startGame() {
   hydrateSelectors();
   renderRoundRows();
   refresh();
-  saveAutosavedGame();
+  saveAutosavedGame({ type: "game-created", payload: {} });
   showMessage("");
   launchSuitFirework(fullPoolTarget());
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2171,7 +2211,7 @@ async function closeConventionModal() {
   conventionEditSnapshot = null;
   if (changedDuringGame) {
     refresh();
-    saveAutosavedGame();
+    saveAutosavedGame({ type: "convention-changed", payload: { convention: state.convention } });
   }
 }
 function openRulesModal() {
@@ -2491,7 +2531,8 @@ function addRecord() {
     redoStack = [];
     closeRecordWizard();
     refresh();
-    saveAutosavedGame();
+    const eventType = lastRecordOutcome?.type === "manual" ? "manual-adjustment" : "record-added";
+    saveAutosavedGame({ type: eventType, payload: firestoreSafeValue(lastRecordOutcome || {}) });
   } catch (error) {
     showRecordValidation(error.message);
   }
@@ -3113,7 +3154,7 @@ function addPoolTarget() {
   pushHistory(`Добавлена пуля: до ${format(nextTarget)}`);
   closeAddPoolModal();
   refresh();
-  saveAutosavedGame();
+  saveAutosavedGame({ type: "pool-extended", payload: { poolTarget: nextTarget } });
 }
 
 function requestScoreCalculation() {
@@ -4135,7 +4176,16 @@ function saveGame() {
     saveConventionFile();
     return;
   }
-  downloadJson("preferans.pref.json", state);
+  const snapshot = syncCoordinator?.currentSnapshot();
+  downloadJson("preferans.pref.json", {
+    format: "preferans-game-v2",
+    schemaVersion: GAME_SCHEMA_VERSION,
+    gameId: state.gameId,
+    revision: Number(restoredSyncMetadata?.revision ?? snapshot?.revision ?? 0),
+    state: cloneState(),
+    pendingEvents: syncCoordinator?.pendingEvents() || restoredSyncMetadata?.pendingEvents || [],
+    exportedAt: new Date().toISOString(),
+  });
 }
 
 function saveConventionFile() {
@@ -4168,8 +4218,16 @@ function loadGame(event) {
         event.target.value = "";
         return;
       }
+      const loadedState = loaded?.format === "preferans-game-v2" && loaded?.state ? loaded.state : loaded;
       activeSharedGameId = null;
-      Object.assign(state, normalizeState(loaded));
+      Object.assign(state, normalizeState(loadedState));
+      restoredSyncMetadata = loaded?.format === "preferans-game-v2"
+        ? {
+            revision: Number(loaded.revision || 0),
+            stateHash: String(loaded.stateHash || ""),
+            pendingEvents: Array.isArray(loaded.pendingEvents) ? loaded.pendingEvents : [],
+          }
+        : null;
       undoStack = [];
       redoStack = [];
       document.body.classList.add("game-started");
@@ -4230,22 +4288,34 @@ function importConventionFile(source) {
 
 // Firestore collaboration and remote state synchronization
 function setupRemoteSync() {
+  const params = new URLSearchParams(window.location.search);
+  const remoteTestKey = "preferans.test.remote-disabled";
+  if (params.has("remote")) sessionStorage.removeItem(remoteTestKey);
+  if (params.has("no-remote")) sessionStorage.setItem(remoteTestKey, "1");
+  const hasInjectedCompat = Boolean(window.firebase?.initializeApp && window.firebase?.firestore);
+  if (!hasInjectedCompat && (window.__PREFERANS_DISABLE_REMOTE__ || sessionStorage.getItem(remoteTestKey) === "1")) return;
   const config = window.FIREBASE_CONFIG;
   const hasConfig = config && config.apiKey && !String(config.apiKey).includes("YOUR_");
-  if (!hasConfig || !window.firebase?.initializeApp || !window.firebase?.firestore) return;
+  if (!hasConfig) return;
   try {
-    if (!window.firebase.apps.length) window.firebase.initializeApp(config);
-    remoteDb = window.firebase.firestore();
-    remoteDb.settings({
-      ignoreUndefinedProperties: true,
-      experimentalAutoDetectLongPolling: true,
-      merge: true,
-    });
+    // Playwright injects a compat-shaped fake. Production uses the modular SDK
+    // so Firebase is part of the Vite dependency graph and can be type-checked.
+    if (window.firebase?.initializeApp && window.firebase?.firestore) {
+      if (!window.firebase.apps.length) window.firebase.initializeApp(config);
+      remoteDb = window.firebase.firestore();
+      remoteDb.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true, merge: true });
+    } else {
+      remoteRepository = new FirestoreGameRepository({
+        config,
+        normalizeLegacyState: (value) => normalizeState(value || {}),
+      });
+    }
     remoteAvailable = true;
   } catch (error) {
     remoteAvailable = false;
     remoteDb = null;
-    console.warn("Firebase initialization failed", error);
+    remoteRepository = null;
+    logger.error("Firebase initialization failed", { reason: error?.message });
   }
 }
 
@@ -4260,7 +4330,7 @@ function getUrlGameId() {
 }
 
 function generateGameToken() {
-  const bytes = new Uint8Array(12);
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
@@ -4285,12 +4355,19 @@ function remoteGameRef(gameId = state.gameId) {
 }
 
 function detachRemoteGame() {
+  syncCoordinator?.stop();
+  syncCoordinator = null;
   if (typeof remoteUnsubscribe === "function") remoteUnsubscribe();
   remoteUnsubscribe = null;
 }
 
 function subscribeRemoteGame(gameId = state.gameId) {
-  if (!remoteAvailable || !remoteDb || !gameId) return;
+  if (!remoteAvailable || !gameId) return;
+  if (remoteRepository) {
+    void startModularSync(gameId, true);
+    return;
+  }
+  if (!remoteDb) return;
   detachRemoteGame();
   remoteUnsubscribe = remoteGameRef(gameId).onSnapshot((snapshot) => {
     if (!snapshot.exists) return;
@@ -4316,8 +4393,12 @@ function subscribeRemoteGame(gameId = state.gameId) {
 }
 
 async function loadRemoteGame(gameId) {
-  if (!remoteAvailable || !remoteDb) {
+  if (!remoteAvailable || (!remoteDb && !remoteRepository)) {
     showMessage("Firebase не подключён. Проверьте firebase-config.js и подключение к сети.");
+    return;
+  }
+  if (remoteRepository) {
+    await startModularSync(gameId, false);
     return;
   }
   try {
@@ -4426,12 +4507,29 @@ function remoteStateFromSnapshot(data) {
   return data.state || null;
 }
 function queueRemoteSave() {
-  if (!remoteAvailable || !remoteDb || !state.gameId) return;
+  if (!remoteAvailable || (!remoteDb && !remoteRepository) || !state.gameId) return;
   window.clearTimeout(remoteSaveTimer);
   remoteSaveTimer = window.setTimeout(saveRemoteGame, 150);
 }
 
 async function saveRemoteGame() {
+  if (remoteRepository) {
+    if (!syncCoordinator) await startModularSync(state.gameId, true);
+    if (!syncCoordinator) return;
+    const after = remoteGameState();
+    const before = lastStagedRemoteState || after;
+    if (canonicalJson(before) === canonicalJson(after)) return;
+    lastStagedRemoteState = cloneStateValue(after);
+    const command = pendingRemoteCommand;
+    pendingRemoteCommand = { type: "settings-changed", payload: {} };
+    try {
+      await syncCoordinator.stage(command, before, after);
+    } catch (error) {
+      logger.warn("Remote event staging failed", { reason: error?.message });
+      showMessage(remoteSaveErrorMessage(error));
+    }
+    return;
+  }
   const ref = remoteGameRef();
   if (!ref) return;
   try {
@@ -4446,6 +4544,113 @@ async function saveRemoteGame() {
     console.warn("Remote game save failed", error);
     showMessage(remoteSaveErrorMessage(error));
   }
+}
+
+async function startModularSync(gameId, preferLocal) {
+  if (!remoteRepository || !gameId) return;
+  if (syncCoordinator && syncCoordinator.currentSnapshot().gameId === gameId) return;
+  detachRemoteGame();
+  const localState = remoteGameState();
+  let remote = null;
+  try {
+    remote = await remoteRepository.load(gameId);
+  } catch (error) {
+    logger.warn("Remote game load failed", { reason: error?.message });
+    if (!preferLocal) {
+      showMessage("Не удалось загрузить игру по ссылке. Проверьте Firestore и правила доступа.");
+      return;
+    }
+  }
+
+  const pending = restoredSyncMetadata?.pendingEvents || [];
+  const localRevision = Number(restoredSyncMetadata?.revision || 0);
+  const localUpdatedAt = Number(localState.remoteUpdatedAt || 0);
+  const remoteUpdatedAt = Number(remote?.updatedAt || 0);
+  const localRecoveryIsNewer = Boolean(remote && remote.revision === 0 && preferLocal && !pending.length
+    && localUpdatedAt > remoteUpdatedAt);
+  const mustKeepLocal = !remote || pending.length > 0 || localRecoveryIsNewer;
+  let initial = remote;
+  if (mustKeepLocal) {
+    initial = {
+      schemaVersion: GAME_SCHEMA_VERSION,
+      gameId,
+      revision: localRevision,
+      state: localState,
+      stateHash: await hashValue(localState),
+      updatedAt: Number(localState.remoteUpdatedAt || Date.now()),
+    };
+  }
+  if (remote && !mustKeepLocal) {
+    applyingRemoteState = true;
+    applyRemoteGameState(remote.state, gameId);
+    applyingRemoteState = false;
+  }
+  const coordinatorInitial = remote && localRecoveryIsNewer ? remote : initial;
+  lastStagedRemoteState = cloneStateValue(localRecoveryIsNewer ? localState : coordinatorInitial.state);
+  syncCoordinator = new SyncCoordinator({
+    gameId,
+    clientId: syncClientId(),
+    initialSnapshot: coordinatorInitial,
+    repository: remoteRepository,
+    pendingEvents: pending,
+    onRemoteState: (remoteState, snapshot) => {
+      applyingRemoteState = true;
+      applyRemoteGameState(remoteState, gameId);
+      applyingRemoteState = false;
+      restoredSyncMetadata = { revision: snapshot.revision, stateHash: snapshot.stateHash, pendingEvents: syncCoordinator?.pendingEvents() || [] };
+      lastStagedRemoteState = cloneStateValue(remoteState);
+      queueVersionedLocalSave();
+    },
+    onPendingChange: (events, snapshot) => {
+      restoredSyncMetadata = { revision: snapshot.revision, stateHash: snapshot.stateHash, pendingEvents: events };
+      queueVersionedLocalSave();
+    },
+    onStatus: (status, error) => {
+      document.documentElement.dataset.syncStatus = status;
+      updateSyncStatus(status);
+      if (status === "conflict") showMessage("Конфликт синхронизации: удалённая партия изменилась. Локальная запись сохранена и не была затёрта.");
+      logger.debug("Sync status changed", { status, reason: error?.message });
+    },
+  });
+  syncCoordinator.start();
+
+  if (!remote) {
+    await syncCoordinator.stage({ type: "game-created", payload: {} }, localState, localState);
+  } else if (localRecoveryIsNewer) {
+    await syncCoordinator.stage({
+      type: "state-migrated",
+      payload: { source: remote.revision === 0 ? "json-v1" : "local-recovery" },
+    }, remote.state, localState);
+  }
+  setGameUrl(gameId);
+}
+
+function updateSyncStatus(status) {
+  if (!el.syncStatus) return;
+  const labels = {
+    idle: "",
+    saving: "Сохраняется…",
+    synced: "Синхронизировано",
+    offline: "Офлайн · сохранено локально",
+    conflict: "Конфликт · локальная копия сохранена",
+  };
+  el.syncStatus.textContent = labels[status] || "";
+  el.syncStatus.dataset.status = status;
+  el.syncStatus.hidden = !labels[status];
+}
+
+function syncClientId() {
+  const key = "preferans.sync.client.v1";
+  let value = localStorage.getItem(key);
+  if (!value) {
+    value = crypto.randomUUID();
+    localStorage.setItem(key, value);
+  }
+  return value;
+}
+
+function cloneStateValue(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function firestoreSafeValue(value) {
@@ -4893,7 +5098,7 @@ function undoRecord() {
   restoreState(undoStack.pop());
   markScoresStale();
   refresh();
-  saveAutosavedGame();
+  saveAutosavedGame({ type: "undo", payload: {} });
 }
 
 function redoRecord() {
@@ -4902,7 +5107,7 @@ function redoRecord() {
   restoreState(redoStack.pop());
   markScoresStale();
   refresh();
-  saveAutosavedGame();
+  saveAutosavedGame({ type: "redo", payload: {} });
 }
 
 function updateHistoryButtons() {

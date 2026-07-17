@@ -1,4 +1,5 @@
-const CACHE_NAME = "preference-pwa-v88";
+const CACHE_NAME = "preference-pwa-v89";
+const BUILD_ASSETS = [];
 const APP_SHELL = [
   "./",
   "index.html",
@@ -16,7 +17,8 @@ const APP_SHELL = [
   "icons/pwa-192.png",
   "icons/pwa-512.png",
   "icons/pwa-maskable-512.png",
-  "fonts/share-tech-rus.ttf"
+  "fonts/share-tech-rus.ttf",
+  ...BUILD_ASSETS
 ];
 
 self.addEventListener("install", (event) => {

@@ -682,22 +682,21 @@ test("a newer shared autosave survives an older Firestore snapshot after reload"
   expect(gameId).toBeTruthy();
 
   await page.unroute(firebasePattern);
-  await page.route(firebasePattern, (route) => route.fulfill({
-    contentType: "application/javascript",
-    body: `
-      if (!window.firebase) {
+  await page.addInitScript(() => {
+      (window as any).__PREFERANS_DISABLE_REMOTE__ = false;
+      if (!(window as any).firebase) {
         const gameId = new URL(location.href).searchParams.get("game");
         const local = JSON.parse(localStorage.getItem("preferans.autosave.v1.shared." + gameId));
         const remote = structuredClone(local.state);
         remote.mountain[0] = 0;
         remote.history = [];
         remote.remoteUpdatedAt = Math.max(1, Number(local.state.remoteUpdatedAt) - 10000);
-        window.__remoteWrites = [];
+        (window as any).__remoteWrites = [];
         let remoteState = remote;
         const ref = {
           get: async () => ({ exists: true, data: () => ({ stateJson: JSON.stringify(remoteState) }) }),
           set: async (value) => {
-            window.__remoteWrites.push(value);
+            (window as any).__remoteWrites.push(value);
             remoteState = JSON.parse(value.stateJson);
           },
           onSnapshot: (next) => {
@@ -708,16 +707,17 @@ test("a newer shared autosave survives an older Firestore snapshot after reload"
         const db = { settings() {}, collection: () => ({ doc: () => ref }) };
         const firestore = () => db;
         firestore.FieldValue = { serverTimestamp: () => Date.now() };
-        window.firebase = {
+        (window as any).firebase = {
           apps: [],
           initializeApp() { this.apps.push({}); },
           firestore
         };
       }
-    `
-  }));
+  });
 
-  await page.goto(gameUrl);
+  const fakeRemoteUrl = new URL(gameUrl);
+  fakeRemoteUrl.searchParams.set("remote", "1");
+  await page.goto(fakeRemoteUrl.toString());
   await expect.poll(async () => (await snapshot(page)).mountain[0]).toBe(5);
   await expect.poll(() => page.evaluate(() => (window as any).__remoteWrites?.length || 0)).toBeGreaterThan(0);
   const uploadedMountain = await page.evaluate(() => {

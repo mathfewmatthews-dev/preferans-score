@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import type { ActualSnapshot, ContractRecord } from "./audit-types";
 
 export async function openCleanApp(page: Page) {
-  await page.goto("/");
+  await page.goto("/?no-remote=1");
   await page.evaluate(() => {
     Object.keys(localStorage)
       .filter((key) => key.startsWith("preferans.autosave."))

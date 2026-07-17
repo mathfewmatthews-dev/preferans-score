@@ -1,8 +1,81 @@
-﻿rules_version = '2';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function validGameId(gameId) {
+      return gameId.matches('^[A-Za-z0-9_-]{16,64}$');
+    }
+
+    function validV2(gameId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion', 'gameId', 'revision', 'stateJson', 'stateHash',
+          'updatedAt', 'clientUpdatedAt', 'testOnly', 'expiresAt'
+        ])
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.gameId == gameId
+        && request.resource.data.revision is int
+        && request.resource.data.revision > 0
+        && request.resource.data.stateHash is string
+        && request.resource.data.stateHash.size() == 64
+        && request.resource.data.stateJson is string
+        && request.resource.data.stateJson.size() < 900000
+        && request.resource.data.clientUpdatedAt is number
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validLegacy() {
+      return !('schemaVersion' in request.resource.data)
+        && request.resource.data.stateJson is string
+        && request.resource.data.stateJson.size() < 900000;
+    }
+
     match /games/{gameId} {
-      allow read, write: if gameId.matches('^[A-Za-z0-9_-]{16,64}$');
+      allow read: if validGameId(gameId);
+      allow create: if validGameId(gameId)
+        && ((validV2(gameId) && request.resource.data.revision == 1) || validLegacy());
+      allow update: if validGameId(gameId)
+        && (
+          (validV2(gameId)
+            && request.resource.data.revision == (('schemaVersion' in resource.data) && resource.data.schemaVersion == 2 ? resource.data.revision + 1 : 1))
+          || ((!('schemaVersion' in resource.data) || resource.data.schemaVersion != 2) && validLegacy())
+        );
+      allow delete: if resource.data.testOnly == true;
+
+      match /events/{eventId} {
+        allow read: if validGameId(gameId);
+        allow create: if validGameId(gameId)
+          && eventId.matches('^[A-Fa-f0-9-]{36}$')
+          && request.resource.data.keys().hasOnly([
+            'schemaVersion', 'eventId', 'gameId', 'baseRevision', 'revision',
+            'beforeHash', 'afterHash', 'eventJson', 'createdAt'
+          ])
+          && request.resource.data.schemaVersion == 2
+          && request.resource.data.eventId == eventId
+          && request.resource.data.gameId == gameId
+          && request.resource.data.baseRevision is int
+          && request.resource.data.revision == request.resource.data.baseRevision + 1
+          && request.resource.data.beforeHash is string
+          && request.resource.data.beforeHash.size() == 64
+          && request.resource.data.afterHash is string
+          && request.resource.data.afterHash.size() == 64
+          && request.resource.data.eventJson is string
+          && request.resource.data.eventJson.size() < 900000
+          && request.resource.data.createdAt is timestamp
+          && getAfter(/databases/$(database)/documents/games/$(gameId)).data.revision == request.resource.data.revision;
+        allow update: if false;
+        allow delete: if get(/databases/$(database)/documents/games/$(gameId)).data.testOnly == true;
+      }
+
+      match /backups/{backupId} {
+        allow read: if validGameId(gameId);
+        allow create: if validGameId(gameId)
+          && backupId == 'legacy-v1'
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.sourceJson is string
+          && request.resource.data.sourceJson.size() < 900000
+          && request.resource.data.migratedAt is timestamp;
+        allow update: if false;
+        allow delete: if get(/databases/$(database)/documents/games/$(gameId)).data.testOnly == true;
+      }
     }
   }
 }
